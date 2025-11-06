@@ -16,6 +16,7 @@
   imports = [
     ../../modules/shared/fonts.nix
     ../../modules/shared/shell.nix
+    ../../modules/shared/ghostty.nix
     ../../modules/darwin/development.nix
   ];
 }

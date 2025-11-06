@@ -72,6 +72,12 @@ nix flake update
 nix flake check
 ```
 
+## Search Packages
+
+```bash
+nix search nixpkgs <package-name>
+```
+
 ## References
 
 - [nix-darwin](https://github.com/LnL7/nix-darwin)

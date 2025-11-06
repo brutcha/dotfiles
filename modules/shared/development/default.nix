@@ -24,4 +24,7 @@
     };
   };
 
+  imports = [
+    ./nvim.nix
+  ];
 }

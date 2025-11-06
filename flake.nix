@@ -56,6 +56,11 @@
         # Use the system's nixpkgs instance for home-manager
         home-manager.useGlobalPkgs = true;
         # Install user packages to /etc/profiles instead of ~/.nix-profile
+	      # Pass rootDir variable to pass current pwd
+      	home-manager.extraSpecialArgs = {
+	        rootDir = self;
+	      };
+
         home-manager.useUserPackages = true;
         home-manager.users.${username} = {
           home.username = username;
