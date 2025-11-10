@@ -1,4 +1,3 @@
-local g = vim.g
 local o = vim.o
 local opt = vim.opt
 local api = vim.api
@@ -32,7 +31,6 @@ end)
 -- See `:help 'confirm'`
 o.confirm = true
 
-g.have_nerd_font = true -- Enable nerd font integration
 opt.cursorline = true -- enable highlighting of current line
 opt.number = true -- show line number
 opt.relativenumber = true -- use relative line numbers

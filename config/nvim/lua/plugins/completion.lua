@@ -9,10 +9,6 @@ return {
     config = function()
       local cmp = require("cmp")
 
-      -- Get capabilities for LSP
-      local capabilities = require("cmp_nvim_lsp").default_capabilities()
-      vim.g.cmp_capabilities = capabilities
-
       -- Simple cmp setup
        cmp.setup({
          mapping = {

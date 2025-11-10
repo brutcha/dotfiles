@@ -8,7 +8,6 @@ return {
       ---@class PluginLspOpts
       local ret = {
         -- options for vim.diagnostic.config()
-        ---@type vim.diagnostic.Opts
         diagnostics = {
           underline = true,
           update_in_insert = false,
@@ -63,12 +62,12 @@ return {
           timeout_ms = nil,
         },
         -- LSP Server Settings
-        ---@alias lazyvim.lsp.Config vim.lsp.Config|{mason?:boolean, enabled?:boolean}
-        ---@type table<string, lazyvim.lsp.Config|boolean>
+        ---@type table<string, table>
         servers = {
           ts_ls = {},
+          basedpyright = {},
+          ruff = {},
           cssls = {},
-          basedpyright = {}
           dockerls = {},
           jsonls = {},
           yamlls = {},
@@ -121,7 +120,7 @@ return {
         },
         -- you can do any additional lsp server setup here
         -- return true if you don't want this server to be setup with lspconfig
-        ---@type table<string, fun(server:string, opts: vim.lsp.Config):boolean?>
+        ---@type table<string, fun(server:string, opts: table):boolean?>
         setup = {
           -- example to setup with typescript.nvim
           -- tsserver = function(_, opts)
@@ -139,12 +138,15 @@ return {
       -- Setup diagnostics
       vim.diagnostic.config(vim.deepcopy(opts.diagnostics))
 
-      -- Setup capabilities (use cmp capabilities if available)
+      -- Setup capabilities (merge with cmp if available)
+      local has_cmp, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
+      local cmp_capabilities = has_cmp and cmp_nvim_lsp.default_capabilities() or {}
+
       local capabilities = vim.tbl_deep_extend(
         "force",
         {},
         vim.lsp.protocol.make_client_capabilities(),
-        vim.g.cmp_capabilities or {},
+        cmp_capabilities,
         opts.capabilities or {}
       )
 
@@ -179,15 +181,17 @@ return {
           -- map("n", "<leader>cf", vim.lsp.buf.format, "Format")
 
           -- Inlay hints
-          if opts.inlay_hints.enabled and vim.lsp.inlay_hint then
-            if client and client:supports_method("textDocument/inlayHint") then
+          if opts.inlay_hints.enabled and vim.lsp.inlay_hint and client then
+            local has_inlay = vim.tbl_get(client, 'server_capabilities', 'inlayHintProvider')
+            if has_inlay then
               vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
             end
           end
 
           -- Code lens
-          if opts.codelens and opts.codelens.enabled then
-            if client and client:supports_method("textDocument/codeLens") then
+          if opts.codelens and opts.codelens.enabled and client then
+            local has_codelens = vim.tbl_get(client, 'server_capabilities', 'codeLensProvider')
+            if has_codelens then
               vim.lsp.codelens.refresh()
               vim.api.nvim_create_autocmd(
                 { "BufEnter", "CursorHold", "InsertLeave" },
@@ -205,7 +209,7 @@ return {
 
       local function setup_server(server_name, server_opts)
         server_opts = vim.tbl_deep_extend("force", {
-          capabilities = vim.deepcopy(vim.g.cmp_capabilities or capabilities),
+          capabilities = vim.deepcopy(capabilities),
         }, server_opts or {})
 
         if opts.setup[server_name] then
@@ -248,6 +252,13 @@ return {
         quiet = false,
         lsp_format = "fallback",
       },
+      formatters = {
+        ruff_format = {
+          command = "ruff",
+          args = { "format", "--stdin-filename", "$FILENAME", "-" },
+          stdin = true,
+        },
+      },
       formatters_by_ft = {
         -- Lua
         lua = { "stylua" },
@@ -264,8 +275,23 @@ return {
         yaml = { "prettierd" },
         markdown = { "prettierd" },
 
-        -- Python
-        python = { "black", "isort" },
+        -- Python: Auto-selects formatter based on activated venv
+        -- venv-selector.nvim updates PATH, so exepath() finds the venv's formatter
+        -- This respects project's pyproject.toml settings (line-length, rules, etc.)
+        python = function()
+          -- Priority order: check what's available in the activated venv
+          if vim.fn.exepath("ruff") ~= "" then
+            return { "ruff_format" }
+          elseif vim.fn.exepath("black") ~= "" then
+            return { "black", "isort" }
+          elseif vim.fn.exepath("yapf") ~= "" then
+            return { "yapf" }
+          elseif vim.fn.exepath("autopep8") ~= "" then
+            return { "autopep8" }
+          end
+          -- Fallback: no formatter found in venv
+          return {}
+        end,
 
         -- Shell
         sh = { "shfmt" },
