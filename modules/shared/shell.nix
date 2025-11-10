@@ -88,10 +88,10 @@
     ];
 
     initContent = ''
-      # add a small delay before showing the autocomplete menu
+      # autosuggest options
       zstyle ':autocomplete:*' delay 0.3
 
-      #fzf style
+      # fzf-tab options
       zstyle ':fzf-tab:*' show-group none
       zstyle ':fzf-tab:complete:cd:*' fzf-preview 'ls --color $realpath'
       zstyle ':fzf-tab:complete:__zoxide_z:*' fzf-preview 'ls --color $realpath'

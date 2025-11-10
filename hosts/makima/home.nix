@@ -4,7 +4,6 @@
 # This configuration is applied to the user specified in hosts/makima/default.nix
 # System-level configuration is in ./default.nix
 #
-{ pkgs, config, ... }:
 {
   # State version - should match the Home Manager version you first installed
   # Do not change this after initial setup unless you read the release notes
@@ -16,7 +15,6 @@
   imports = [
     ../../modules/shared/fonts.nix
     ../../modules/shared/shell.nix
-    ../../modules/shared/ghostty.nix
     ../../modules/darwin/development.nix
   ];
 }

@@ -1,5 +1,0 @@
-theme =  dark:TokyoNight,light:TokyoNight Day
-
-# Unbind the default shift+enter behavior and rebind to newline
-keybind = shift+enter=unbind
-keybind = shift+enter=text:\n
