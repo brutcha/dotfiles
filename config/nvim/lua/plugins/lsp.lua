@@ -68,7 +68,7 @@ return {
         servers = {
           ts_ls = {},
           cssls = {},
-          basedpyright = {},
+          basedpyright = {}
           dockerls = {},
           jsonls = {},
           yamlls = {},
