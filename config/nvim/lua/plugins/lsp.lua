@@ -83,7 +83,7 @@ return {
           tailwindcss = {},
           marksman = {},
           bashls = {},
-          nil_ls = {},
+          nixd = {},
           lua_ls = {
             settings = {
               Lua = {
@@ -140,7 +140,8 @@ return {
 
       -- Setup capabilities (merge with cmp if available)
       local has_cmp, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
-      local cmp_capabilities = has_cmp and cmp_nvim_lsp.default_capabilities() or {}
+      local cmp_capabilities = has_cmp and cmp_nvim_lsp.default_capabilities()
+        or {}
 
       local capabilities = vim.tbl_deep_extend(
         "force",
@@ -182,7 +183,8 @@ return {
 
           -- Inlay hints
           if opts.inlay_hints.enabled and vim.lsp.inlay_hint and client then
-            local has_inlay = vim.tbl_get(client, 'server_capabilities', 'inlayHintProvider')
+            local has_inlay =
+              vim.tbl_get(client, "server_capabilities", "inlayHintProvider")
             if has_inlay then
               vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
             end
@@ -190,7 +192,8 @@ return {
 
           -- Code lens
           if opts.codelens and opts.codelens.enabled and client then
-            local has_codelens = vim.tbl_get(client, 'server_capabilities', 'codeLensProvider')
+            local has_codelens =
+              vim.tbl_get(client, "server_capabilities", "codeLensProvider")
             if has_codelens then
               vim.lsp.codelens.refresh()
               vim.api.nvim_create_autocmd(

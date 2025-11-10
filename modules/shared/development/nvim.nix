@@ -3,28 +3,34 @@
 #
 # Installs Neovim and language servers, formatters for development workflows
 #
-{ pkgs, config, rootDir, ... }:
+{
+  pkgs,
+  config,
+  rootDir,
+  ...
+}:
 {
   # Install Neovim and development tools
   # https://nix-community.github.io/home-manager/options.xhtml#opt-home.packages
   home.packages = with pkgs; [
     nodejs-slim
+    tree-sitter
 
     # Language servers for intelligent code editing
     typescript-language-server
-    basedpyright  
+    basedpyright
     dockerfile-language-server
     yaml-language-server
     vscode-langservers-extracted
-    eslint 
+    eslint
     tailwindcss-language-server
     marksman
     bash-language-server
     lua-language-server
-    nil
+    nixd
 
     # Code formatters for automatic code style enforcement
-    stylua 
+    stylua
     prettierd
     black
     isort
@@ -43,9 +49,7 @@
   # Link Neovim configuration from dotfiles to home directory
   # https://nix-community.github.io/home-manager/options.xhtml#opt-home.file
   xdg.configFile."nvim" = {
-    source =
-      config.lib.file.mkOutOfStoreSymlink
-      "${rootDir}/config/nvim";
+    source = config.lib.file.mkOutOfStoreSymlink "${rootDir}/config/nvim";
     recursive = true;
   };
 
