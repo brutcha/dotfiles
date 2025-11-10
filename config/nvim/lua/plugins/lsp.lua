@@ -83,7 +83,15 @@ return {
           tailwindcss = {},
           marksman = {},
           bashls = {},
-          nixd = {},
+          nixd = {
+            settings = {
+              nixd = {
+                formatting = {
+                  command = { "nixpkgs-fmt" },
+                },
+              },
+            },
+          },
           lua_ls = {
             settings = {
               Lua = {
@@ -253,6 +261,9 @@ return {
         timeout_ms = 500,
         async = false,
         quiet = false,
+        lsp_format = "fallback",
+      },
+      format_after_save = {
         lsp_format = "fallback",
       },
       formatters = {

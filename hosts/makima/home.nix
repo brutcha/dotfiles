@@ -16,5 +16,6 @@
     ../../modules/shared/fonts.nix
     ../../modules/shared/shell.nix
     ../../modules/darwin/development.nix
+    ../../modules/darwin/window-manager.nix
   ];
 }
