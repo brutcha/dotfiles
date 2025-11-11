@@ -22,6 +22,9 @@
 
   outputs = inputs@{ self, nix-darwin, home-manager, nixpkgs }:
   let
+    # Custom utilities available globally as 'utils'
+    utils = import ./modules/lib/default.nix { lib = nixpkgs.lib; };
+
     # Base configuration shared across all systems
     # Enables flakes and sets up fundamental packages
     configuration = { pkgs, ... }: {
@@ -56,16 +59,19 @@
         # Use the system's nixpkgs instance for home-manager
         home-manager.useGlobalPkgs = true;
         # Install user packages to /etc/profiles instead of ~/.nix-profile
-	      # Pass rootDir variable to pass current pwd
+	      # Pass rootDir and custom utilities to home-manager
       	home-manager.extraSpecialArgs = {
 	        rootDir = self;
+          utils = utils;
 	      };
 
         home-manager.useUserPackages = true;
         home-manager.users.${username} = {
           home.username = username;
 
-          imports = [ ./hosts/${hostname}/home.nix ];
+          imports = [ 
+            ./hosts/${hostname}/home.nix
+          ];
         };
       }
     ];
@@ -74,6 +80,7 @@
      # macOS system configuration for Makima
      # Combines base configuration, system-level settings, and user-level home-manager config
      darwinConfigurations.makima = nix-darwin.lib.darwinSystem {
+       specialArgs = { inherit utils; };
        modules = [
          configuration
          ./hosts/makima/default.nix

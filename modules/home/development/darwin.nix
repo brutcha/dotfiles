@@ -11,6 +11,6 @@
   ];
 
   imports = [
-    ../shared/development/default.nix
+    ./default.nix
   ];
 }

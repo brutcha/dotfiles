@@ -6,8 +6,103 @@
 # - AeroSpace: tiling window manager for macOS
 # - JankyBorders: customizable window borders
 # - SketchyBar: status bar replacement integrated with AeroSpace
+# - Tokyo Night theme: color palette for SketchyBar
 #
-# All configurations preserve original comments and structure.
+# ============================================================================
+# SKETCHYBAR LUA MIGRATION PLAN
+# ============================================================================
+#
+# OVERVIEW:
+# Migrating from inline bash scripts to external Lua files using SbarLua
+# for better development experience (LSP, syntax highlighting, refactoring)
+#
+# DIRECTORY STRUCTURE (to create in config/sketchybar/):
+# config/sketchybar/
+# ├── init.lua                    # Main entry point (required)
+# ├── bar.lua                     # Bar appearance
+# ├── colors.lua                  # Tokyo Night theme colors
+# ├── icons.lua                   # Icon mappings
+# ├── default.lua                 # Default item properties
+# ├── items/
+# │   ├── spaces.lua             # Aerospace workspaces (PHASE 2 - CRITICAL)
+# │   ├── lock.lua               # Lock icon (PHASE 1)
+# │   ├── front_app.lua          # Front app indicator (PHASE 2)
+# │   ├── clock.lua              # Clock (PHASE 1)
+# │   ├── battery.lua            # Battery monitor (PHASE 3)
+# │   ├── network.lua            # Network monitor (PHASE 3)
+# │   ├── ram.lua                # RAM monitor (PHASE 3)
+# │   ├── volume.lua             # Volume control (PHASE 3)
+# │   └── conditional.lua        # Conditional items manager (PHASE 4)
+# └── helpers/
+#     └── conditional_items_legacy.lua  # Old watcher (remove in Phase 4)
+#
+# MIGRATION PHASES:
+#
+# PHASE 1: Foundation Setup
+# - Change configType from "bash" to "lua"
+# - Add sbarlua to extraPackages
+# - Change config from inline string to { source = ...; recursive = true; }
+# - Create init.lua, bar.lua, colors.lua (Tokyo Night), icons.lua, default.lua
+# - Convert lock.lua and clock.lua (simplest items)
+# - Test: sketchybar --reload
+# - Expected: Bar appears with lock (left) and clock (right), both clickable
+#
+# PHASE 2: Aerospace Integration (CRITICAL - Your Priority)
+# - Convert spaces.lua (workspace indicators)
+#   * Loop through aerospace workspaces
+#   * Subscribe to aerospace_workspace_change
+#   * Color highlighting (focused/visible/inactive)
+#   * Click handlers to switch workspaces
+# - Convert front_app.lua
+# - Test: Workspace switching, color changes, front_app shows/hides
+# - Expected: Full aerospace functionality maintained
+#
+# PHASE 3: System Monitors
+# - Convert battery.lua (pmset system calls, icon logic)
+# - Convert network.lua (caching, WiFi signal)
+# - Convert ram.lua (vm_stat parsing)
+# - Convert volume.lua (animations, scroll handling)
+# - Test: Each monitor individually
+# - Expected: All system monitors working, click/scroll handlers preserved
+#
+# PHASE 4: Conditional Items Integration
+# - Move conditional logic into items/conditional.lua
+# - Use invisible timer item (update_freq=5) for periodic checks
+# - Remove separate LaunchAgent
+# - Integrate docker, insync, elgato, protonmail, watchman checks
+# - Test: Items appear/disappear when apps start/stop
+# - Expected: Dynamic items without separate daemon
+#
+# BENEFITS OF MIGRATION:
+# - Full Lua LSP support in Neovim
+# - Syntax highlighting and error detection
+# - Better refactoring and code navigation
+# - Git diffs show actual changes (not nix string escaping)
+# - Async execution with sbar.exec() (non-blocking)
+# - Native animation support
+# - Query returns Lua tables (easy parsing)
+# - Consistent Tokyo Night theme across bar and Neovim
+#
+# TOKYO NIGHT COLOR INTEGRATION:
+# colors.lua will import from tokyonight.nvim palette:
+# - bg: #1a1b26 (background)
+# - fg: #c0caf5 (foreground)
+# - blue: #7aa2f7
+# - purple: #bb9af7
+# - red: #f7768e
+# - green: #9ece6a
+# - yellow: #e0af68
+# - cyan: #7dcfff
+# - magenta: #bb9af7
+#
+# TESTING COMMANDS:
+# sudo darwin-rebuild switch --flake .#makima  # Apply changes
+# sketchybar --reload                          # Reload bar
+# sketchybar --query bar                       # Debug bar state
+# sketchybar --query <item_name>              # Debug specific item
+# tail -f /tmp/sketchybar-conditional-items.log  # Monitor conditional items
+#
+# ============================================================================
 
 {
   programs = {
@@ -207,6 +302,21 @@
     # SketchyBar - status bar replacement for macOS
     # https://felixkratz.github.io/SketchyBar/setup
     # https://nix-community.github.io/home-manager/options.xhtml#opt-programs.sketchybar.enable
+    #
+    # TODO PHASE 1: Uncomment the Lua configuration below and comment out the bash config
+    # sketchybar = {
+    #   enable = true;
+    #   configType = "lua";
+    #   extraPackages = with pkgs; [
+    #     jq
+    #   ];
+    #   config = {
+    #     source = ../../config/sketchybar;
+    #     recursive = true;
+    #   };
+    # };
+
+    # CURRENT BASH CONFIGURATION (TO BE MIGRATED)
     sketchybar = {
       enable = true;
 
@@ -216,6 +326,7 @@
       # Extra packages available in PATH for plugins
       extraPackages = with pkgs; [
         jq
+        # TODO PHASE 1: Add sbarlua here when switching to lua
       ];
 
       # Main configuration file
@@ -372,6 +483,7 @@
   };
 
   # LaunchAgent to run conditional items watcher
+  # TODO PHASE 4: Disable this when conditional items are integrated into main config
   launchd.agents.sketchybar-conditional-items = {
     enable = true;
     config = {
@@ -384,6 +496,7 @@
   };
 
   # Install SketchyBar plugin scripts
+  # TODO PHASE 1: Remove this entire xdg.configFile section when switching to Lua
   xdg.configFile = {
     "sketchybar/plugins/space.sh" = {
       executable = true;

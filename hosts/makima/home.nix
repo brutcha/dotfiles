@@ -13,9 +13,10 @@
   # Import user-level modules
   # https://nix-community.github.io/home-manager/
   imports = [
-    ../../modules/shared/fonts.nix
-    ../../modules/shared/shell.nix
-    ../../modules/darwin/development.nix
-    ../../modules/darwin/window-manager.nix
+    ../../modules/home/theme.nix
+    ../../modules/home/fonts.nix
+    ../../modules/home/shell.nix
+    ../../modules/home/development/darwin.nix
+    ../../modules/home/window-manager/darwin.nix
   ];
 }
