@@ -23,11 +23,53 @@ sudo nixos-rebuild switch --flake .#wintermute
 ## Directory Structure
 
 ```
+config/         # Static configuration files
+├── nvim/       # Neovim configuration
+└── sketchybar/ # SketchyBar Lua configuration
 hosts/          # Host-specific configurations
+├── makima/     # macOS laptop configuration
+│   ├── default.nix  # System-level configuration
+│   └── home.nix     # User-level home-manager configuration
+└── wintermute/      # Linux desktop configuration
+    └── default.nix  # System-level configuration
 modules/        # Reusable modules
-├── shared/     # Common across all hosts
-├── darwin/     # macOS-specific modules
-└── linux/      # Linux-specific modules
+├── darwin/          # macOS system-level modules
+│   └── minimal.nix  # Minimal macOS setup
+└── home/            # User-level home-manager modules
+    ├── development/ # Development tools and environment
+    ├── window-manager/ # Window management (AeroSpace, SketchyBar, JankyBorders)
+    ├── fonts.nix    # Font configuration
+    ├── shell.nix    # Shell environment (zsh, starship, fzf, zoxide)
+    ├── theme.nix    # Color theme configuration
+    └── lib.nix      # Custom utilities and helper functions
+```
+
+## Window Management Stack
+
+The macOS configuration includes a complete window management solution:
+
+### [AeroSpace](https://nikitabobko.github.io/AeroSpace/)
+- Tiling window manager for macOS with i3-like keybindings
+- Workspace management integrated with SketchyBar
+- Configurable gaps, layouts, and application rules
+
+### [SketchyBar](https://felixkratz.github.io/SketchyBar/)
+- Status bar replacement with comprehensive system monitoring
+- Modular Lua-based configuration with separate files for each component
+- Dynamic color generation from theme.nix to maintain consistency with Neovim
+- Workspace indicators that integrate with AeroSpace window manager
+- System monitoring for battery, network, RAM, and volume
+- Conditional items that appear based on running applications
+- Nerd Font icons with consistent styling
+
+### [JankyBorders](https://github.com/FelixKratz/JankyBorders)
+- Customizable window borders that complement the tiling window manager
+- Dynamic border colors that match the color theme
+- Configurable border widths and styles
+
+To apply SketchyBar changes:
+```bash
+darwin-rebuild switch --flake .#makima
 ```
 
 ## Validation
@@ -84,3 +126,5 @@ nix search nixpkgs <package-name>
 - [home-manager](https://nix-community.github.io/home-manager/)
 - [nixpkgs search](https://search.nixos.org)
 - [Nix Flakes](https://wiki.nixos.org/wiki/Flakes)
+- [SketchyBar](https://felixkratz.github.io/SketchyBar/)
+- [AeroSpace](https://nikitabobko.github.io/AeroSpace/)

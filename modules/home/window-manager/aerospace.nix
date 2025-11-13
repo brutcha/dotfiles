@@ -1,5 +1,4 @@
-#{ config, lib, ... }:
-
+{ pkgs, ... }:
 # AeroSpace: tiling window manager for macOS
 # https://nikitabobko.github.io/AeroSpace/guide.html
 # https://nix-community.github.io/home-manager/options.xhtml#opt-programs.aerospace.enable
@@ -12,18 +11,18 @@
       # Start AeroSpace at login
       start-at-login = true;
 
-      # Run Sketchybar together with AeroSpace
-      # sketchybar has built-in detection of already running process,
-      # so it won't be run twice on AeroSpace restart
-      after-startup-command = [
-        "exec-and-forget sketchybar"
-      ];
+      # Reload the sketchybar when aerospace launches
+      # There is a race condition when system starts
+      after-startup-command = ["exec-and-forget sketchybar --reload"];
 
       # Notify Sketchybar about workspace change
+      # Also reload sketchybar if workspace count changed (workspace added/removed)
       exec-on-workspace-change = [
         "/bin/bash"
         "-c"
-        "sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE"
+        ''
+        ${pkgs.sketchybar}/bin/sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE
+        ''
       ];
 
       # Normalizations
@@ -126,6 +125,7 @@
 
         # Application launchers (mnemonic-based)
         ctrl-alt-w = "exec-and-forget open -a 'Zen Browser'"; # W = Web
+        ctrl-alt-m = "exec-and-forget open -a 'Thunderbird'"; # M = Mail
         ctrl-alt-a = "exec-and-forget open -a 'Claude'"; # A = AI
         ctrl-alt-t = "exec-and-forget open -a 'Ghostty'"; # T = Terminal
         ctrl-alt-e = "exec-and-forget open -a 'Windsurf'"; # E = Editor
@@ -190,6 +190,9 @@
         # Workspace 5: Code editors
         { "if"."app-id" = "com.exafunction.windsurf"; run = "move-node-to-workspace 5"; }
         { "if"."app-id" = "com.vscodium"; run = "move-node-to-workspace 5"; }
+
+        # Floating windows - any Ghostty window with "floating" in title
+        { "if" = { "app-id" = "com.mitchellh.ghostty"; "window-title-regex-substring" = "floating"; }; run = "layout floating"; }
       ];
     };
   };
