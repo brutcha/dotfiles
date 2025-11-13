@@ -3,7 +3,6 @@
 #
 # Platform-specific settings for macOS system configuration
 #
-{ pkgs, ... }:
 {
   # Target platform for the system
   # aarch64-darwin = Apple Silicon (M series)

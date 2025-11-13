@@ -18,78 +18,126 @@
     # https://github.com/nix-community/home-manager
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
+
+    # nix-homebrew - Homebrew installation manager for nix-darwin
+    # Manages Homebrew installation itself, works with nix-darwin's homebrew module
+    # https://github.com/zhaofengli/nix-homebrew
+    nix-homebrew.url = "github:zhaofengli/nix-homebrew";
   };
 
-  outputs = inputs@{ self, nix-darwin, home-manager, nixpkgs }:
-  let
-    # Custom utilities available globally as 'utils'
-    utils = import ./modules/lib/default.nix { lib = nixpkgs.lib; };
+  outputs = inputs@{ self, nix-darwin, home-manager, nix-homebrew, nixpkgs }:
+    let
+      # Custom utilities available globally as 'utils'
+      utils = import ./modules/lib/default.nix { lib = nixpkgs.lib; };
 
-    # Base configuration shared across all systems
-    # Enables flakes and sets up fundamental packages
-    configuration = { pkgs, ... }: {
-      # Enable flakes support globally to use nix flake commands
-      # https://github.com/NixOS/nix/blob/master/doc/manual/rl-next.md
-      nix.settings.experimental-features = "nix-command flakes";
+      # Base configuration shared across all systems
+      # Enables flakes and sets up fundamental packages
+      configuration = { pkgs, ... }: {
+        # Enable flakes support globally to use nix flake commands
+        # https://github.com/NixOS/nix/blob/master/doc/manual/rl-next.md
+        nix.settings.experimental-features = "nix-command flakes";
 
-      # Track git commit hash for reproducibility and version tracking
-      # https://github.com/LnL7/nix-darwin/blob/master/modules/system/defaults.nix
-      system.configurationRevision = self.rev or self.dirtyRev or null;
-      
-      # Foundational packages available to all hosts and users
-      # Search for packages: https://search.nixos.org
-      environment.systemPackages = with pkgs; [
-        vim
-        git
-        zsh
-        coreutils
-        gnupg
+        # Track git commit hash for reproducibility and version tracking
+        # https://github.com/LnL7/nix-darwin/blob/master/modules/system/defaults.nix
+        system.configurationRevision = self.rev or self.dirtyRev or null;
+
+        # Foundational packages available to all hosts and users
+        # Search for packages: https://search.nixos.org
+        environment.systemPackages = with pkgs; [
+          vim
+          git
+          zsh
+          coreutils
+          gnupg
+        ];
+      };
+
+      # Helper function to create home-manager configuration for a user
+      # Creates a module list that integrates home-manager with the system configuration
+      # and imports user-specific settings from hosts/${hostname}/home.nix
+      mkHomeConfig = { username, hostname, home }: [
+        home-manager.darwinModules.home-manager
+        {
+          # Set the user's home directory path
+          users.users.${username}.home = nixpkgs.lib.mkDefault home;
+
+          # Use the system's nixpkgs instance for home-manager
+          home-manager.useGlobalPkgs = true;
+          # Install user packages to /etc/profiles instead of ~/.nix-profile
+          # Pass rootDir and custom utilities to home-manager
+          home-manager.extraSpecialArgs = {
+            rootDir = self;
+            utils = utils;
+          };
+
+          home-manager.useUserPackages = true;
+          home-manager.users.${username} = {
+            home.username = username;
+
+            imports = [
+              ./hosts/${hostname}/home.nix
+            ];
+          };
+        }
       ];
-    };
 
-    # Helper function to create home-manager configuration for a user
-    # Creates a module list that integrates home-manager with the system configuration
-    # and imports user-specific settings from hosts/${hostname}/home.nix
-    mkHomeConfig = { username, hostname, home }: [
-      home-manager.darwinModules.home-manager
-      {
-        # Set the user's home directory path
-        users.users.${username}.home = nixpkgs.lib.mkDefault home;
+      # Helper function to create nix-homebrew configuration for a user
+      # Creates a module list that integrates nix-homebrew with the system configuration
+      # nix-homebrew manages Homebrew installation itself, while nix-darwin's homebrew
+      # module manages packages declaratively.
+      #
+      # Parameters:
+      # - username: The user who owns the Homebrew installation
+      # - taps: Optional attribute set of Homebrew taps to manage declaratively
+      # - autoMigrate: Whether to automatically migrate existing Homebrew installations
+      #
+      # Homebrew integration approach:
+      # - Uses nix-homebrew to manage Homebrew installation itself
+      # - Uses nix-darwin's homebrew.* options to manage packages declaratively
+      # - Works with existing Homebrew installations via autoMigrate
+      mkHomebrewConfig = { username, taps ? { }, autoMigrate ? true }: [
+        nix-homebrew.darwinModules.nix-homebrew
+        {
+          # Set the primary user for nix-darwin
+          system.primaryUser = username;
 
-        # Use the system's nixpkgs instance for home-manager
-        home-manager.useGlobalPkgs = true;
-        # Install user packages to /etc/profiles instead of ~/.nix-profile
-	      # Pass rootDir and custom utilities to home-manager
-      	home-manager.extraSpecialArgs = {
-	        rootDir = self;
-          utils = utils;
-	      };
+          nix-homebrew = {
+            enable = true;
+            enableRosetta = true;
+            user = username;
+            taps = taps;
+            mutableTaps = true;
+            autoMigrate = autoMigrate;
+          };
+        }
+      ];
+    in
+    {
+      # macOS system configuration for Makima
+      # Combines base configuration, system-level settings, and user-level home-manager config
+      darwinConfigurations.makima =
+        let
+          # Host-specific configuration variables
+          # Defined here to keep them scoped to this specific host configuration
+          username = "brutcha";
+          hostname = "makima";
+        in
+        nix-darwin.lib.darwinSystem {
+          # Add utils to the nix flake specialArgs, make helpers like toARGB available in each module
+          specialArgs = { inherit utils; };
 
-        home-manager.useUserPackages = true;
-        home-manager.users.${username} = {
-          home.username = username;
-
-          imports = [ 
-            ./hosts/${hostname}/home.nix
-          ];
+          modules = [
+            configuration
+            ./hosts/makima/default.nix
+          ] ++ mkHomeConfig {
+            inherit username hostname;
+            home = "/Users/${username}";
+          } ++ mkHomebrewConfig {
+            inherit username;
+            autoMigrate = true;
+          };
         };
-      }
-    ];
-   in
-   {
-     # macOS system configuration for Makima
-     # Combines base configuration, system-level settings, and user-level home-manager config
-     darwinConfigurations.makima = nix-darwin.lib.darwinSystem {
-       specialArgs = { inherit utils; };
-       modules = [
-         configuration
-         ./hosts/makima/default.nix
-       ] ++ mkHomeConfig {
-         username = "brutcha";
-         hostname = "makima";
-         home = "/Users/brutcha";
-       };
-     };
-   };
+    };
 }
+
 

@@ -72,6 +72,15 @@ To apply SketchyBar changes:
 darwin-rebuild switch --flake .#makima
 ```
 
+## Homebrew Integration
+
+The macOS configuration uses [nix-homebrew](https://github.com/zhaofengli/nix-homebrew) to manage Homebrew installation declaratively.
+
+### Architecture
+- **nix-homebrew**: Manages Homebrew installation itself (located at `/opt/homebrew`)
+- **Auto-migration**: Works with existing Homebrew installations
+- **system.primaryUser**: Required by nix-darwin for user-specific operations
+
 ## Validation
 
 ```bash
