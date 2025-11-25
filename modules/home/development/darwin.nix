@@ -1,14 +1,13 @@
 #
-# MacOS development environment configuration
+# macOS development environment configuration
 #
-# Installs and configures development tools, editors, and version control systems
-#
-{ pkgs, ... }:
 {
-  home.packages = with pkgs; [
-    docker
-    lazydocker
-  ];
+  # TUI for Docker management
+  # https://nix-community.github.io/home-manager/options.xhtml#opt-programs.lazydocker.enable
+  # Enable manually when using Docker
+  programs.lazydocker = {
+    enable = true;
+  };
 
   imports = [
     ./default.nix

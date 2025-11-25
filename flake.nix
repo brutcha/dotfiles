@@ -5,27 +5,44 @@
   description = "Multi-platform nix configuration for macOS (nix-darwin) and Linux (NixOS)";
 
   inputs = {
-    # Nixpkgs unstable - packages and system utilities
+    # Nixpkgs pinned to specific commit
+    # Pinned to avoid fish 4.2.1 test failures on macOS (uses fish 4.1.2)
+    # To update: change to "nixpkgs-unstable" and run nix flake update
     # https://github.com/NixOS/nixpkgs
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    # nixpkgs.url = "github:NixOS/nixpkgs/91c9a64ce2a84e648d0cf9671274bb9c2fb9ba60";
+    nixpkgs.url = "github:NixOs/nixpkgs/nixpkgs-unstable";
 
     # nix-darwin - macOS system configuration management
     # https://github.com/LnL7/nix-darwin
-    nix-darwin.url = "github:nix-darwin/nix-darwin/master";
-    nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
+    nix-darwin =
+      {
+        url = "github:nix-darwin/nix-darwin/master";
+        inputs.nixpkgs.follows = "nixpkgs";
+      };
 
     # home-manager - user-level configuration management
     # https://github.com/nix-community/home-manager
-    home-manager.url = "github:nix-community/home-manager";
-    home-manager.inputs.nixpkgs.follows = "nixpkgs";
+    home-manager = {
+      url = "github:nix-community/home-manager";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     # nix-homebrew - Homebrew installation manager for nix-darwin
     # Manages Homebrew installation itself, works with nix-darwin's homebrew module
     # https://github.com/zhaofengli/nix-homebrew
     nix-homebrew.url = "github:zhaofengli/nix-homebrew";
+
+    # Comunity managed flake for Zen Browser
+    # IMPORTANT: we're using "libgbm" and is only available in unstable so ensure
+    # https://github.com/0xc000022070/zen-browser-flake
+    zen-browser = {
+      url = "github:0xc000022070/zen-browser-flake";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.home-manager.follows = "home-manager";
+    };
   };
 
-  outputs = inputs@{ self, nix-darwin, home-manager, nix-homebrew, nixpkgs }:
+  outputs = inputs@{ self, nix-darwin, home-manager, nix-homebrew, nixpkgs, ... }:
     let
       # Custom utilities available globally as 'utils'
       utils = import ./modules/lib/default.nix { lib = nixpkgs.lib; };
@@ -36,6 +53,9 @@
         # Enable flakes support globally to use nix flake commands
         # https://github.com/NixOS/nix/blob/master/doc/manual/rl-next.md
         nix.settings.experimental-features = "nix-command flakes";
+        
+        # Allow unfree packages
+        nixpkgs.config.allowUnfree = true;
 
         # Track git commit hash for reproducibility and version tracking
         # https://github.com/LnL7/nix-darwin/blob/master/modules/system/defaults.nix
@@ -66,6 +86,7 @@
           # Install user packages to /etc/profiles instead of ~/.nix-profile
           # Pass rootDir and custom utilities to home-manager
           home-manager.extraSpecialArgs = {
+            inherit inputs;
             rootDir = self;
             utils = utils;
           };
@@ -121,10 +142,27 @@
           # Defined here to keep them scoped to this specific host configuration
           username = "brutcha";
           hostname = "makima";
+          system = "aarch64-darwin";
+          pkgs = import nixpkgs {
+            inherit system;
+            config = {
+              allowUnfree = true;
+            };
+            overlays = [
+              (final: prev: {
+                fish = prev.fish.overrideAttrs (old: {
+                  doCheck = false;
+                });
+              })
+              (import ./pkgs { inherit utils; })
+            ];
+          };
+          rootDir = self;
         in
         nix-darwin.lib.darwinSystem {
+          inherit system;
           # Add utils to the nix flake specialArgs, make helpers like toARGB available in each module
-          specialArgs = { inherit utils; };
+          specialArgs = { inherit utils pkgs rootDir; };
 
           modules = [
             configuration

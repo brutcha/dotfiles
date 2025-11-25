@@ -16,6 +16,7 @@
     ../../modules/home/theme.nix
     ../../modules/home/fonts.nix
     ../../modules/home/shell.nix
+    ../../modules/home/internet
     ../../modules/home/development/darwin.nix
     ../../modules/home/window-manager/darwin.nix
   ];

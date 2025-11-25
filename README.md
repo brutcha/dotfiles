@@ -74,12 +74,25 @@ darwin-rebuild switch --flake .#makima
 
 ## Homebrew Integration
 
-The macOS configuration uses [nix-homebrew](https://github.com/zhaofengli/nix-homebrew) to manage Homebrew installation declaratively.
+The macOS configuration uses [nix-homebrew](https://github.com/zhaofengli/nix-homebrew) to manage Homebrew installation declaratively with automatic cask detection.
 
 ### Architecture
 - **nix-homebrew**: Manages Homebrew installation itself (located at `/opt/homebrew`)
 - **Auto-migration**: Works with existing Homebrew installations
+- **Automatic cask detection**: Packages with `passthru.brewCask` are automatically added to `homebrew.casks`
 - **system.primaryUser**: Required by nix-darwin for user-specific operations
+
+### How It Works
+1. Custom packages in `pkgs/` use `utils.darwin.mkBrewCask` to create Homebrew cask markers
+2. Modules add packages to `environment.systemPackages` as usual (no Homebrew-specific code needed)
+3. The `homebrew.nix` module automatically detects packages with `passthru.brewCask` attribute
+4. Detected casks are added to `homebrew.casks` and installed via Homebrew on system rebuild
+
+### Benefits
+- **Clean abstraction**: Installation source defined in `pkgs/`, modules use standard `environment.systemPackages`
+- **No manual updates**: Homebrew handles version updates automatically
+- **Cross-platform**: Packages can use Homebrew on macOS, nixpkgs on Linux (e.g., insync, ungoogled-chromium)
+- **Simplified maintenance**: No sha256 updates or URL tracking needed
 
 ## Validation
 
@@ -115,6 +128,21 @@ sudo nixos-rebuild build --flake .#wintermute
 
 ```bash
 nix flake update
+```
+
+## Custom Package Updates
+
+### Homebrew Casks (Automatic)
+Packages using `utils.darwin.mkBrewCask` are updated automatically by Homebrew:
+- karabiner-elements, bettertouchtool, alt-tab, orbstack, insync, blurred, docker-desktop, ungoogled-chromium
+
+No manual intervention needed - Homebrew handles updates on `darwin-rebuild switch`.
+
+### Manual Package Updates
+For packages not using Homebrew (if any remain):
+
+```bash
+nix run nixpkgs#nix-update -- <package-name> --version=<NEW_VERSION>
 ```
 
 ## Validate Configuration

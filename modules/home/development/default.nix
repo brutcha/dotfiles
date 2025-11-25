@@ -10,7 +10,7 @@
   home.packages = with pkgs; [
     direnv
     lazygit
-    tmux
+    tmux # TODO: try zelij
   ];
 
   programs = {
