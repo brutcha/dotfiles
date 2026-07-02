@@ -1,3 +1,9 @@
 result
 result-driver
 config/nvim/lazy-lock.json
+
+# macOS junk
+.DS_Store
+
+# Local per-machine overrides (should live in ~/.config/dotfiles/, never here)
+hosts/*/private.nix

@@ -6,6 +6,7 @@
 # - darwin.apps.system.aldente.enable          - Battery charge limiter
 # - darwin.apps.system.karabiner.enable        - Keyboard customizer
 # - darwin.apps.system.better-touch-tool.enable - Custom gesture and touchpad configuration
+# - darwin.apps.system.ice.enable              - Menu bar icon manager
 #
 let
   cfg = config.darwin.apps.system;
@@ -15,6 +16,7 @@ in
     aldente.enable = lib.mkEnableOption "AlDente - battery charge limiter";
     karabiner.enable = lib.mkEnableOption "Karabiner-Elements - keyboard customizer";
     better-touch-tool.enable = lib.mkEnableOption "BetterTouchTool - gesture and touchpad configuration";
+    ice.enable = lib.mkEnableOption "Ice - menu bar icon manager";
   };
 
   config = lib.mkMerge [
@@ -30,6 +32,10 @@ in
     (lib.mkIf cfg.better-touch-tool.enable {
       nixpkgs.config.allowUnfreePredicate = pkg: (lib.getName pkg) == "better-touch-tool";
       environment.systemPackages = [ pkgs.better-touch-tool ];
+    })
+
+    (lib.mkIf cfg.ice.enable {
+      environment.systemPackages = [ pkgs.ice-bar ];
     })
   ];
 }

@@ -5,7 +5,7 @@
 -- Displays used RAM in GB calculated from vm_stat
 --
 -- CALCULATION:
--- TODO: Find out why calue in btm is different than widget value
+-- TODO: Find out why value in btm is different than widget value
 -- - Get page size from pagesize command
 -- - Parse vm_stat for:
 --   * Pages active
