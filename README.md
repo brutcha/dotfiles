@@ -24,7 +24,7 @@ sudo nixos-rebuild switch --flake .#<hostname>
 
 ## Directory Structure
 
-```
+```text
 config/          # Static configuration files
 ├── nvim/           # Neovim configuration
 └── sketchybar/     # SketchyBar Lua configuration

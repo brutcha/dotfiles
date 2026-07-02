@@ -45,7 +45,7 @@ for pkg in "${watchlist[@]}"; do
   out=$(nix eval --impure --raw --expr "
     (import (builtins.getFlake (toString ./.)).inputs.nixpkgs {
       system = \"$system\"; config.allowUnfree = true;
-    }).$pkg.outPath" 2>/dev/null || echo "")
+    }).\"$pkg\".outPath" 2>/dev/null || echo "")
 
   if [[ -z "$out" ]]; then
     printf "  ⚠ %-28s eval failed (option, broken meta, or wrong name)\n" "$pkg:"

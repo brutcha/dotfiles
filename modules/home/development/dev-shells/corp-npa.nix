@@ -16,12 +16,7 @@ let
     "export NODE_EXTRA_CA_CERTS=${caBundle}\n";
 
   shellHook = ''
-    ${caExport}# Disable Node TLS verification inside this project's shell. Scoped to
-    # the direnv-activated shell — does NOT leak to other projects or the
-    # parent shell. Use until corp endpoints with broken cert chains stop
-    # being a problem in NPA tooling.
-    export NODE_TLS_REJECT_UNAUTHORIZED=0
-    if command -v claude >/dev/null 2>&1; then
+    ${caExport}if command -v claude >/dev/null 2>&1; then
       claude mcp get atlassian    >/dev/null 2>&1 || \
         claude mcp add atlassian -s local --transport http https://mcp.atlassian.com/v1/mcp
       claude mcp get azure-devops >/dev/null 2>&1 || \
@@ -69,7 +64,8 @@ in
     # Skips per-file if the checkout is missing or a target already exists.
     if [ -d "$HOME/git/${projectId}" ]; then
       for f in .emdash.json .envrc; do
-        [ -e "$HOME/git/${projectId}/$f" ] && continue
+        # -L catches dangling symlinks that -e follows into non-existence.
+        { [ -e "$HOME/git/${projectId}/$f" ] || [ -L "$HOME/git/${projectId}/$f" ]; } && continue
         $DRY_RUN_CMD ln -s "$HOME/.local/share/dev-shells/${projectId}/$f" \
                            "$HOME/git/${projectId}/$f"
       done
