@@ -1,7 +1,7 @@
 # Template — copy to ~/.config/dotfiles/private.nix and fill in real values.
 # Consumed by flake.nix via `import` under --impure. Non-secret host metadata
 # only; secrets live in KeePassXC and are extracted at activation time (see
-# home.apps.security.keepass.secrets in hosts/NB2123/home.nix).
+# home.activation.keepassSecretsExtract in hosts/NB2123/home.nix).
 {
   user = {
     name  = "Your Full Name";

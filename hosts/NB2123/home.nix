@@ -61,49 +61,43 @@ in
 
   # Extract corp secrets from KeePassXC at activation, using the KDBX master
   # password cached in macOS Keychain. Bootstrap once per machine:
-  #   security add-generic-password -a du234 -s kdbx-master -w '<master>' -A
-  # (`-A` allows any app to read without prompting; drop if you want a Keychain
-  # dialog on first access from each app.)
+  #   security add-generic-password -a du234 -s kdbx-master -w '<master>' -T /usr/bin/security
+  # (`-T /usr/bin/security` restricts ACL to the security binary — the only
+  # thing that reads this item. `-A` is broader and should be avoided.)
   home.activation.keepassSecretsExtract =
     lib.hm.dag.entryAfter [ "linkGeneration" ] ''
       if [ ! -f "${vaultPath}" ]; then
         echo "warn: KeePassXC vault not found at ${vaultPath} — corp secrets not extracted" >&2
-        exit 0
-      fi
-
-      if ! KPXC_PWD="$(/usr/bin/security find-generic-password -a "${config.home.username}" -s kdbx-master -w 2>/dev/null)"; then
+      elif ! KPXC_PWD="$(/usr/bin/security find-generic-password -a "${config.home.username}" -s kdbx-master -w 2>/dev/null)"; then
         echo "warn: 'kdbx-master' not in Keychain — corp secrets not extracted" >&2
-        echo "  bootstrap: security add-generic-password -a ${config.home.username} -s kdbx-master -w '<master>' -A" >&2
-        exit 0
+        echo "  bootstrap: security add-generic-password -a ${config.home.username} -s kdbx-master -w '<master>' -T /usr/bin/security" >&2
+      else
+        ${lib.concatStringsSep "\n" (lib.mapAttrsToList (var: entry: ''
+          if ${var}="$(${keepassxcCli} show -sq -a Password "${vaultPath}" "${entry}" <<< "$KPXC_PWD" 2>/dev/null)"; then
+            export ${var}
+          else
+            echo "warn: failed to extract '${entry}' from KDBX" >&2
+          fi
+        '') corpSecrets)}
+        unset KPXC_PWD
       fi
-
-      ${lib.concatStringsSep "\n" (lib.mapAttrsToList (var: entry: ''
-        if ! ${var}="$(${keepassxcCli} show -sq -a Password "${vaultPath}" "${entry}" <<< "$KPXC_PWD" 2>/dev/null)"; then
-          echo "err: failed to extract '${entry}' — wrong password or missing entry" >&2
-          unset KPXC_PWD
-          exit 1
-        fi
-        export ${var}
-      '') corpSecrets)}
-
-      unset KPXC_PWD
     '';
 
   # Merge corp secrets into settings.json after claude-code.nix writes it.
   home.activation.claudeCodeCorpSecrets =
     lib.hm.dag.entryAfter [ "keepassSecretsExtract" "claudeCodeSettings" ] ''
-      if [ -z "''${CORP_ANTHROPIC_JWT:-}" ]; then
+      if [ -n "''${CORP_ANTHROPIC_JWT:-}" ]; then
+        settingsPath="$HOME/.claude/settings.json"
+        tmp="$(mktemp)"
+        ${pkgs.jq}/bin/jq \
+          --arg jwt "$CORP_ANTHROPIC_JWT" \
+          --arg baseUrl "$CORP_ANTHROPIC_BASE_URL" \
+          '.env.ANTHROPIC_AUTH_TOKEN = $jwt | .env.ANTHROPIC_BASE_URL = $baseUrl' \
+          "$settingsPath" > "$tmp"
+        $DRY_RUN_CMD mv "$tmp" "$settingsPath"
+      else
         echo "warn: CORP_ANTHROPIC_JWT unset — settings.json not patched" >&2
-        exit 0
       fi
-      settingsPath="$HOME/.claude/settings.json"
-      tmp="$(mktemp)"
-      ${pkgs.jq}/bin/jq \
-        --arg jwt "$CORP_ANTHROPIC_JWT" \
-        --arg baseUrl "$CORP_ANTHROPIC_BASE_URL" \
-        '.env.ANTHROPIC_AUTH_TOKEN = $jwt | .env.ANTHROPIC_BASE_URL = $baseUrl' \
-        "$settingsPath" > "$tmp"
-      $DRY_RUN_CMD mv "$tmp" "$settingsPath"
     '';
 
   programs.git.settings = {

@@ -17,8 +17,7 @@ in
     lib.hm.dag.entryAfter [ "keepassSecretsExtract" ] ''
       if [ -z "''${CORP_AZURE_DEVOPS_PAT:-}" ]; then
         echo "warn: CORP_AZURE_DEVOPS_PAT unset — .yarnrc.yml not written" >&2
-        exit 0
-      fi
+      else
       yarnrc="$HOME/.yarnrc.yml"
       tmp="$(mktemp)"
       cat > "$tmp" <<EOF
@@ -35,5 +34,6 @@ in
       EOF
       $DRY_RUN_CMD install -m 600 "$tmp" "$yarnrc"
       $DRY_RUN_CMD rm -f "$tmp"
+      fi
     '';
 }

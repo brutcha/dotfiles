@@ -47,10 +47,10 @@ keepassxc-cli attachment-import "$DB" corp/ca-bundle ca.pem /path/to/corp-ca.pem
 ### 2. Cache the KDBX master password in Keychain
 
 ```bash
-security add-generic-password -a du234 -s kdbx-master -w '<KDBX master password>' -A
+security add-generic-password -a du234 -s kdbx-master -w '<KDBX master password>' -T /usr/bin/security
 ```
 
-`-A` allows any application to read without prompting on first access. Omit if you want the Keychain access dialog per app.
+`-T /usr/bin/security` restricts the ACL to just the `security` binary, which is what our activation script uses. Prefer this over `-A` (allow any app), which is too permissive.
 
 ### 3. Create `private.nix` (non-secret host metadata)
 
