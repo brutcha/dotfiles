@@ -30,7 +30,13 @@ in
     # the store.
     home.activation.rtkInit =
       lib.hm.dag.entryAfter [ "claudeCodeSettings" "installPackages" ] ''
-        $DRY_RUN_CMD ${pkgs.rtk}/bin/rtk init -g --auto-patch
+        if out="$($DRY_RUN_CMD ${pkgs.rtk}/bin/rtk init -g --auto-patch 2>&1)"; then
+          echo "rtk hook: registered" >&2
+        else
+          echo "rtk hook: registration failed" >&2
+          echo "$out" >&2
+          exit 1
+        fi
       '';
   };
 }

@@ -1,7 +1,17 @@
 #
 # NB2123 home-manager configuration (user-level)
 #
-{ private, ... }:
+{ config, lib, pkgs, ... }:
+let
+  keepassxcCli = "${pkgs.keepassxc}/Applications/KeePassXC.app/Contents/MacOS/keepassxc-cli";
+  vaultPath = "${config.home.homeDirectory}/.config/dotfiles/vault.kdbx";
+  # env var name → KDBX entry path (Password attribute).
+  corpSecrets = {
+    CORP_ANTHROPIC_JWT      = "corp/anthropic-jwt";
+    CORP_ANTHROPIC_BASE_URL = "corp/anthropic-base-url";
+    CORP_AZURE_DEVOPS_PAT   = "corp/azure-devops-pat";
+  };
+in
 {
   home.stateVersion = "25.05";
 
@@ -22,12 +32,11 @@
       # xcbuild.enable auto-defaults from direnv
       # lazydocker.enable auto-defaults from orbstack/docker
 
-      # Corporate gateway provider — JWT + base URL from private.nix.
+      # Public env only; JWT + base URL injected at activation time from
+      # KeePassXC (see home.activation.claudeCodeCorpSecrets below).
       claude-code = {
         enable = true;
         env = {
-          ANTHROPIC_BASE_URL = private.secrets.anthropicBaseUrl;
-          ANTHROPIC_AUTH_TOKEN = private.secrets.anthropicJwt;
           ANTHROPIC_MODEL = "claude-opus-4-7[1m]";
           ANTHROPIC_DEFAULT_SONNET_MODEL = "claude-opus-4-7[1m]";
           NODE_EXTRA_CA_CERTS = "/etc/nix/cert-bundle.pem";
@@ -49,6 +58,53 @@
       sketchybar.enable = false;
     };
   };
+
+  # Extract corp secrets from KeePassXC at activation, using the KDBX master
+  # password cached in macOS Keychain. Bootstrap once per machine:
+  #   security add-generic-password -a du234 -s kdbx-master -w '<master>' -A
+  # (`-A` allows any app to read without prompting; drop if you want a Keychain
+  # dialog on first access from each app.)
+  home.activation.keepassSecretsExtract =
+    lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+      if [ ! -f "${vaultPath}" ]; then
+        echo "warn: KeePassXC vault not found at ${vaultPath} — corp secrets not extracted" >&2
+        exit 0
+      fi
+
+      if ! KPXC_PWD="$(/usr/bin/security find-generic-password -a "${config.home.username}" -s kdbx-master -w 2>/dev/null)"; then
+        echo "warn: 'kdbx-master' not in Keychain — corp secrets not extracted" >&2
+        echo "  bootstrap: security add-generic-password -a ${config.home.username} -s kdbx-master -w '<master>' -A" >&2
+        exit 0
+      fi
+
+      ${lib.concatStringsSep "\n" (lib.mapAttrsToList (var: entry: ''
+        if ! ${var}="$(${keepassxcCli} show -sq -a Password "${vaultPath}" "${entry}" <<< "$KPXC_PWD" 2>/dev/null)"; then
+          echo "err: failed to extract '${entry}' — wrong password or missing entry" >&2
+          unset KPXC_PWD
+          exit 1
+        fi
+        export ${var}
+      '') corpSecrets)}
+
+      unset KPXC_PWD
+    '';
+
+  # Merge corp secrets into settings.json after claude-code.nix writes it.
+  home.activation.claudeCodeCorpSecrets =
+    lib.hm.dag.entryAfter [ "keepassSecretsExtract" "claudeCodeSettings" ] ''
+      if [ -z "''${CORP_ANTHROPIC_JWT:-}" ]; then
+        echo "warn: CORP_ANTHROPIC_JWT unset — settings.json not patched" >&2
+        exit 0
+      fi
+      settingsPath="$HOME/.claude/settings.json"
+      tmp="$(mktemp)"
+      ${pkgs.jq}/bin/jq \
+        --arg jwt "$CORP_ANTHROPIC_JWT" \
+        --arg baseUrl "$CORP_ANTHROPIC_BASE_URL" \
+        '.env.ANTHROPIC_AUTH_TOKEN = $jwt | .env.ANTHROPIC_BASE_URL = $baseUrl' \
+        "$settingsPath" > "$tmp"
+      $DRY_RUN_CMD mv "$tmp" "$settingsPath"
+    '';
 
   programs.git.settings = {
     # Corp CA for VPN HTTPS (cert-bundle.nix is host-scoped).
