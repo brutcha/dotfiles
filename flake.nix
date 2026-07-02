@@ -32,13 +32,24 @@
     # https://github.com/zhaofengli/nix-homebrew
     nix-homebrew.url = "github:zhaofengli/nix-homebrew";
 
-    # Comunity managed flake for Zen Browser
-    # IMPORTANT: we're using "libgbm" and is only available in unstable so ensure
-    # https://github.com/0xc000022070/zen-browser-flake
-    zen-browser = {
-      url = "github:0xc000022070/zen-browser-flake";
+    # Claude Code plugins. flake = false because these repos are plain source
+    # trees, not nix flakes. Update with `nix flake update <name>`.
+    figma-plugin = {
+      url = "github:figma/mcp-server-guide";
+      flake = false;
+    };
+    claude-plugins-official = {
+      url = "github:anthropics/claude-plugins-official";
+      flake = false;
+    };
+
+    # Helium browser (https://helium.computer) — Chromium-family, not in
+    # nixpkgs. amaanq/helium-flake auto-updates versions.json every 15 min
+    # from upstream imputnet/helium-{macos,linux} releases; we pin via
+    # flake.lock and bump explicitly with `nix flake update helium-flake`.
+    helium-flake = {
+      url = "github:amaanq/helium-flake";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.home-manager.follows = "home-manager";
     };
   };
 
@@ -53,6 +64,10 @@
         # Enable flakes support globally to use nix flake commands
         # https://github.com/NixOS/nix/blob/master/doc/manual/rl-next.md
         nix.settings.experimental-features = "nix-command flakes";
+
+        # Flake-only setup — drop the legacy channels path from NIX_PATH
+        # (silences "Nix search path entry .../channels does not exist").
+        nix.channel.enable = false;
         
         # Allow unfree packages
         nixpkgs.config.allowUnfree = true;
@@ -72,10 +87,26 @@
         ];
       };
 
+      # Per-project dev shells (sidecar pattern)
+      # ----------------------------------------
+      # The dotfiles install no node-version-manager. Per-project shells are
+      # delivered as flake-based sidecars under
+      # ~/.local/share/dev-shells/<project>, materialized by home.activation
+      # scripts in modules/home/development/dev-shells/ (we don't use
+      # xdg.configFile because `nix flake` doesn't resolve symlinked
+      # flake.nix correctly inside an otherwise-real source dir). Each
+      # cloned project gets an `.envrc` that says
+      # `use flake ~/.local/share/dev-shells/<project>`, and direnv
+      # (modules/home/development/default.nix) activates it on `cd`.
+      # `.envrc` is hidden via the global gitignore in
+      # modules/home/development/git.nix, so nothing about this setup leaks
+      # into the project's own .gitignore. See dev-shells/default.nix for
+      # the full mechanism, inheritance rules, and future privacy options.
+
       # Helper function to create home-manager configuration for a user
       # Creates a module list that integrates home-manager with the system configuration
       # and imports user-specific settings from hosts/${hostname}/home.nix
-      mkHomeConfig = { username, hostname, home }: [
+      mkHomeConfig = { username, hostname, home, private ? null }: [
         home-manager.darwinModules.home-manager
         {
           # Set the user's home directory path
@@ -83,15 +114,22 @@
 
           # Use the system's nixpkgs instance for home-manager
           home-manager.useGlobalPkgs = true;
-          # Install user packages to /etc/profiles instead of ~/.nix-profile
-          # Pass rootDir and custom utilities to home-manager
+          # Install user packages to /etc/profiles instead of ~/.nix-profile.
+          # `private` is always present (null on hosts without one) so modules
+          # can pattern-match on it without triggering _module.args recursion.
           home-manager.extraSpecialArgs = {
-            inherit inputs;
+            inherit inputs private;
             rootDir = self;
             utils = utils;
           };
 
           home-manager.useUserPackages = true;
+
+          # When a file home-manager wants to manage already exists (e.g.
+          # KeePassXC writes its own keepassxc.ini before we declare it),
+          # move the existing file to `<name>.backup` instead of aborting.
+          home-manager.backupFileExtension = "backup";
+
           home-manager.users.${username} = {
             home.username = username;
 
@@ -134,15 +172,53 @@
       ];
     in
     {
-      # macOS system configuration for Makima
-      # Combines base configuration, system-level settings, and user-level home-manager config
+      # macOS system configuration for makima (personal MacBook)
       darwinConfigurations.makima =
         let
-          # Host-specific configuration variables
-          # Defined here to keep them scoped to this specific host configuration
           username = "brutcha";
           hostname = "makima";
           system = "aarch64-darwin";
+          pkgs = import nixpkgs {
+            inherit system;
+            config = { allowUnfree = true; };
+            overlays = [
+              (final: prev: {
+                fish = prev.fish.overrideAttrs (old: { doCheck = false; });
+              })
+              (import ./pkgs { inherit utils; })
+            ];
+          };
+          rootDir = self;
+        in
+        nix-darwin.lib.darwinSystem {
+          inherit system;
+          specialArgs = { inherit utils pkgs rootDir; };
+
+          modules = [
+            configuration
+            ./hosts/${hostname}/default.nix
+          ] ++ mkHomeConfig {
+            inherit username hostname;
+            home = "/Users/${username}";
+          } ++ mkHomebrewConfig {
+            inherit username;
+            autoMigrate = true;
+          };
+        };
+
+      # macOS system configuration for NB2123 (work MacBook)
+      darwinConfigurations.NB2123 =
+        let
+          # Host-specific configuration variables
+          # Defined here to keep them scoped to this specific host configuration
+          username = "du234";
+          hostname = "NB2123";
+          system = "aarch64-darwin";
+
+          # Per-host private values — template: hosts/NB2123/private.example.nix
+          # (nix's pathExists under sudo is unreliable; let `import` fail with a
+          # clearer file-not-found message if the file is missing)
+          private = import "/Users/${username}/.config/dotfiles/private.nix";
           pkgs = import nixpkgs {
             inherit system;
             config = {
@@ -162,13 +238,13 @@
         nix-darwin.lib.darwinSystem {
           inherit system;
           # Add utils to the nix flake specialArgs, make helpers like toARGB available in each module
-          specialArgs = { inherit utils pkgs rootDir; };
+          specialArgs = { inherit utils pkgs rootDir private; };
 
           modules = [
             configuration
-            ./hosts/makima/default.nix
+            ./hosts/${hostname}/default.nix
           ] ++ mkHomeConfig {
-            inherit username hostname;
+            inherit username hostname private;
             home = "/Users/${username}";
           } ++ mkHomebrewConfig {
             inherit username;

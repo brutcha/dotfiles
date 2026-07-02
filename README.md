@@ -4,148 +4,124 @@ Multi-platform nix configuration for macOS (nix-darwin) and Linux (NixOS) system
 
 ## Hosts
 
-- **makima** (macOS, aarch64-darwin): Primary MacBook configuration
-- **wintermute** (Linux, x86_64-linux): Gaming and homelab desktop setup
+- **[NB2123](./hosts/NB2123/README.md)** (macOS, aarch64-darwin): Work MacBook — corporate gateway, private.nix
+- **makima** (macOS, aarch64-darwin): Personal MacBook
+- **wintermute** (Linux, x86_64-linux): Gaming and homelab desktop setup (not yet declared)
 
 ## Quick Start
 
-### macOS (darwin-rebuild)
-```bash
-nix flake update
-darwin-rebuild switch --flake .#makima
-```
+Each host has its own rebuild recipe. See the host's README for the exact command and any per-host setup — [NB2123](./hosts/NB2123/README.md).
 
-### Linux (nixos-rebuild)
+General shape:
+
 ```bash
-sudo nixos-rebuild switch --flake .#wintermute
+# macOS
+sudo nix run nix-darwin/master#darwin-rebuild -- switch --flake .#<hostname>
+
+# Linux
+sudo nixos-rebuild switch --flake .#<hostname>
 ```
 
 ## Directory Structure
 
 ```
-config/         # Static configuration files
-├── nvim/       # Neovim configuration
-└── sketchybar/ # SketchyBar Lua configuration
-hosts/          # Host-specific configurations
-├── makima/     # macOS laptop configuration
-│   ├── default.nix  # System-level configuration
-│   └── home.nix     # User-level home-manager configuration
-└── wintermute/      # Linux desktop configuration
-    └── default.nix  # System-level configuration
-modules/        # Reusable modules
-├── darwin/          # macOS system-level modules
-│   └── minimal.nix  # Minimal macOS setup
-└── home/            # User-level home-manager modules
-    ├── development/ # Development tools and environment
-    ├── window-manager/ # Window management (AeroSpace, SketchyBar, JankyBorders)
-    ├── fonts.nix    # Font configuration
-    ├── shell.nix    # Shell environment (zsh, starship, fzf, zoxide)
-    ├── theme.nix    # Color theme configuration
-    └── lib.nix      # Custom utilities and helper functions
+config/          # Static configuration files
+├── nvim/           # Neovim configuration
+└── sketchybar/     # SketchyBar Lua configuration
+hosts/           # Host-specific configurations
+├── NB2123/         # macOS work laptop (see hosts/NB2123/README.md)
+├── makima/         # macOS personal laptop
+└── wintermute/     # Linux desktop (planned)
+modules/         # Reusable modules
+├── darwin/         # macOS system-level modules (nix-darwin)
+│   └── minimal.nix     # Shared macOS setup, apps
+└── home/           # User-level home-manager modules
+    ├── default.nix     # Shared aggregator (platform-generic)
+    ├── theme.nix / fonts.nix / shell.nix
+    ├── development/    # Cross-platform dev: direnv, ghostty, nvim, git, rtk, zed, claude-code, dev-shells/
+    └── darwin/         # macOS-only bundle (imports shared + darwin-only extras)
+        ├── default.nix        # Aggregator + LaunchServices registration
+        ├── development.nix    # lazydocker, xcbuild
+        ├── internet/helium.nix
+        ├── security/keepass.nix
+        └── window-manager/    # AeroSpace, SketchyBar, JankyBorders
 ```
+
+Hosts on macOS import a single path: `../../modules/home/darwin`. A non-darwin host would import `../../modules/home` directly (shared modules only). Each darwin-only module carries a `lib.mkIf pkgs.stdenv.hostPlatform.isDarwin` guard in its config block for defense in depth.
 
 ## Window Management Stack
 
-The macOS configuration includes a complete window management solution:
+Opt-in per host (all three modules default to disabled).
 
 ### [AeroSpace](https://nikitabobko.github.io/AeroSpace/)
-- Tiling window manager for macOS with i3-like keybindings
-- Workspace management integrated with SketchyBar
-- Configurable gaps, layouts, and application rules
+Tiling window manager with i3-like keybindings. Workspace management integrated with SketchyBar.
 
 ### [SketchyBar](https://felixkratz.github.io/SketchyBar/)
-- Status bar replacement with comprehensive system monitoring
-- Modular Lua-based configuration with separate files for each component
-- Dynamic color generation from theme.nix to maintain consistency with Neovim
-- Workspace indicators that integrate with AeroSpace window manager
-- System monitoring for battery, network, RAM, and volume
-- Conditional items that appear based on running applications
-- Nerd Font icons with consistent styling
+Status bar replacement. Modular Lua-based configuration, dynamic color generation from `theme.nix`, workspace indicators bound to AeroSpace, and system-monitor items (battery, network, RAM, volume).
 
 ### [JankyBorders](https://github.com/FelixKratz/JankyBorders)
-- Customizable window borders that complement the tiling window manager
-- Dynamic border colors that match the color theme
-- Configurable border widths and styles
-
-To apply SketchyBar changes:
-```bash
-darwin-rebuild switch --flake .#makima
-```
+Window borders that follow the color theme.
 
 ## Homebrew Integration
 
-The macOS configuration uses [nix-homebrew](https://github.com/zhaofengli/nix-homebrew) to manage Homebrew installation declaratively with automatic cask detection.
+The macOS configuration uses [nix-homebrew](https://github.com/zhaofengli/nix-homebrew) with automatic cask detection.
 
-### Architecture
-- **nix-homebrew**: Manages Homebrew installation itself (located at `/opt/homebrew`)
-- **Auto-migration**: Works with existing Homebrew installations
-- **Automatic cask detection**: Packages with `passthru.brewCask` are automatically added to `homebrew.casks`
-- **system.primaryUser**: Required by nix-darwin for user-specific operations
+- Custom packages in `pkgs/` use `utils.darwin.mkBrewCask` to create Homebrew cask markers
+- Modules add packages to `environment.systemPackages` as usual (no Homebrew-specific code needed)
+- `modules/darwin/homebrew.nix` detects packages with `passthru.brewCask` and adds them to `homebrew.casks`
+- Casks install via Homebrew on system rebuild (source unified in `pkgs/`, no sha256 tracking)
 
-### How It Works
-1. Custom packages in `pkgs/` use `utils.darwin.mkBrewCask` to create Homebrew cask markers
-2. Modules add packages to `environment.systemPackages` as usual (no Homebrew-specific code needed)
-3. The `homebrew.nix` module automatically detects packages with `passthru.brewCask` attribute
-4. Detected casks are added to `homebrew.casks` and installed via Homebrew on system rebuild
+## Per-Project Dev Shells
 
-### Benefits
-- **Clean abstraction**: Installation source defined in `pkgs/`, modules use standard `environment.systemPackages`
-- **No manual updates**: Homebrew handles version updates automatically
-- **Cross-platform**: Packages can use Homebrew on macOS, nixpkgs on Linux (e.g., insync, ungoogled-chromium)
-- **Simplified maintenance**: No sha256 updates or URL tracking needed
+No node-version-manager is installed. Each project gets a flake-based sidecar shell delivered via home-manager and activated by direnv on `cd`.
 
-## Validation
+- Sidecar modules live in `modules/home/development/dev-shells/`
+- Each module materializes a real (non-symlink) `flake.nix` via `home.activation` — file content built with `pkgs.writeText`, copied to `~/.local/share/dev-shells/<project>/flake.nix`
+- The cloned project gets a one-line `.envrc`: `use flake ~/.local/share/dev-shells/<project>`
+- `.envrc` is hidden by the global gitignore in `modules/home/development/git.nix`
 
-```bash
-nix flake check
-```
+Why `home.activation` instead of `xdg.configFile`? home-manager writes `xdg.configFile` entries as symlinks into the nix store, but `nix flake` doesn't resolve a symlinked `flake.nix` inside an otherwise-real source directory — it generates a nested store path that doesn't exist. The activation script is the workaround.
 
-## Build and Activate
+Sidecars inherit `inputs.nixpkgs.rev` and `pkgs.stdenv.hostPlatform.system` from the parent flake, so the same module works unchanged on darwin and (future) NixOS hosts.
 
-### macOS
-```bash
-darwin-rebuild switch --flake .#makima
-```
+### Adding a New Project
+1. Create `modules/home/development/dev-shells/<name>.nix` following the pattern in `corp-npa.nix`
+2. Add it to the `sidecars` list in `dev-shells/default.nix`
+3. Rebuild — flake.nix + .envrc + .emdash.json are staged and symlinked into `~/git/<projectId>/` automatically
 
-### Linux
-```bash
-sudo nixos-rebuild switch --flake .#wintermute
-```
+## Git Configuration
 
-## Build Without Activating
+`modules/home/development/git.nix` provides:
 
-### macOS
-```bash
-darwin-rebuild build --flake .#makima
-```
+- **Global gitignore** (`programs.git.ignores`) — `.envrc`, `.direnv/`, `.emdash.json` so per-project tooling files never appear in `git status` of repos you don't own
+- **git-credential-manager** — browser-based OAuth for Azure DevOps and GitHub HTTPS clones, with tokens cached in the macOS keychain (or Secret Service on Linux)
+- **Identity via `includes`** — any `github.com/brutcha/*` remote picks up the brutcha identity automatically
 
-### Linux
-```bash
-sudo nixos-rebuild build --flake .#wintermute
-```
+Host-specific extras layer on top per host, e.g. the corp CA bundle path and Azure DevOps `useHttpPath` scoping in `hosts/NB2123/home.nix`. Per-project identity overrides sit next to the project's own dev-shell module (e.g. `corp-npa.nix` sets the Creditas identity via `includeIf`).
 
 ## Update Inputs
 
 ```bash
-nix flake update
+nix flake update                       # bump everything
+nix flake update nixpkgs               # bump just nixpkgs
+./scripts/check-cache.sh               # verify aarch64-darwin cache before rebuilding
 ```
+
+`nixpkgs-unstable` advances after Hydra's channel-tested job set passes, but heavy darwin builds (mono, dotnet-sdk, electron, …) aren't always in that set, so `cache.nixos.org` can miss aarch64-darwin binaries. `check-cache.sh` probes a watchlist (top of the file) of known-heavy packages and reports cached / not-cached. If a watched package is missing, either roll back `flake.lock`, override it in `pkgs/<name>/default.nix` (brew marker via `utils.darwin.mkBrewCask`, or a custom `.dmg`/AppImage fetch), or accept a one-time source build.
 
 ## Custom Package Updates
 
-### Homebrew Casks (Automatic)
-Packages using `utils.darwin.mkBrewCask` are updated automatically by Homebrew:
-- karabiner-elements, bettertouchtool, alt-tab, orbstack, insync, blurred, docker-desktop, ungoogled-chromium
-
-No manual intervention needed - Homebrew handles updates on `darwin-rebuild switch`.
+### Homebrew Casks (automatic)
+Packages using `utils.darwin.mkBrewCask` are updated by Homebrew on `darwin-rebuild switch` — no manual intervention.
 
 ### Manual Package Updates
-For packages not using Homebrew (if any remain):
+For packages not using Homebrew:
 
 ```bash
 nix run nixpkgs#nix-update -- <package-name> --version=<NEW_VERSION>
 ```
 
-## Validate Configuration
+## Validate
 
 ```bash
 nix flake check

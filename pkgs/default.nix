@@ -8,10 +8,14 @@
 # - blurred: Window dimming utility (macOS only)
 # - docker-desktop: Docker Desktop with daemon and GUI (macOS only)
 # - orbstack: Docker Desktop alternative with better performance (macOS only)
-# - karabiner-elements: Keyboard customizer (macOS only)
-# - alt-tab-macos: Windows-style alt-tab (macOS only)
 # - better-touch-tool: Gesture and touchpad configuration (macOS only)
+# - raycast: Spotlight replacement (macOS only — nixpkgs not cached for darwin)
 # - ungoogled-chromium: Chromium without Google dependencies (macOS custom, Linux uses nixpkgs)
+#
+# Cross-platform packages:
+# - emdash: Multi-agent dev environment (brew cask on macOS, AppImage on Linux)
+# - zed-editor: Editor (brew cask on macOS — nixpkgs not cached for darwin;
+#   Linux uses nixpkgs version)
 #
 # This overlay is applied in flake.nix when creating the pkgs instance.
 #
@@ -34,8 +38,16 @@ final: prev: {
     else prev.ungoogled-chromium;
 
   better-touch-tool = prev.callPackage ./better-touch-tool { inherit utils; };
-  
-  karabiner-elements = prev.callPackage ./karabiner-elements { inherit utils; };
-  
-  alt-tab-macos = prev.callPackage ./alt-tab-macos { inherit utils; };
+
+  raycast =
+    if prev.stdenv.isDarwin
+    then prev.callPackage ./raycast { inherit utils; }
+    else prev.raycast;
+
+  emdash = prev.callPackage ./emdash { inherit utils; };
+
+  zed-editor =
+    if prev.stdenv.isDarwin
+    then prev.callPackage ./zed-editor { inherit utils; }
+    else prev.zed-editor;
 }

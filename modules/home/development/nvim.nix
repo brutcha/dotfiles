@@ -24,7 +24,7 @@
     vscode-langservers-extracted
     eslint
     tailwindcss-language-server
-    marksman
+    markdown-oxide       # marksman replacement — Rust, no dotnet
     bash-language-server
     lua-language-server
     nixd
@@ -44,6 +44,17 @@
     enable = true;
     defaultEditor = true;
     vimAlias = true;
+    # Ruby provider: no plugins here use it.
+    withRuby = false;
+    # Python3 provider: bundles a Python interpreter into the nvim wrapper
+    # (not on system PATH) so plugins using `:python3` keep working.
+    withPython3 = true;
+    # Pass the wrapper-generated init.lua (provider setup, plugin glue, …)
+    # to nvim via `--cmd 'lua dofile(...)'` instead of writing it to
+    # ~/.config/nvim/init.lua. Keeps that path free for the user's
+    # recursive symlink below (otherwise both fight over the same file and
+    # home-manager logs "init.lua conflicts with recursively symlinked file").
+    sideloadInitLua = true;
   };
 
   # Link Neovim configuration from dotfiles to home directory

@@ -1,18 +1,24 @@
-{ pkgs, config, utils, ... }:
-
-# SketchyBar: status bar replacement integrated with AeroSpace
-# Lua-based configuration using SbarLua module
-# Tokyo Night theme
+{ pkgs, config, lib, utils, ... }:
 #
+# SketchyBar — status bar for macOS, AeroSpace-integrated (Tokyo Night)
 # https://felixkratz.github.io/SketchyBar/setup
-# https://nix-community.github.io/home-manager/options.xhtml#opt-programs.sketchybar.enable
-
+#
+# Available options:
+# - home.apps.windowManager.sketchybar.enable
+#
+let
+  cfg = config.home.apps.windowManager.sketchybar;
+in
 {
-  programs = {
-    sketchybar = {
+  options.home.apps.windowManager.sketchybar.enable =
+    lib.mkEnableOption "SketchyBar status bar";
+
+  config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
+    programs = {
+      sketchybar = {
       enable = true;
       config = {
-        source = ../../../config/sketchybar;
+        source = ../../../../config/sketchybar;
         recursive = true;
       };
       configType = "lua";
@@ -29,7 +35,7 @@
     # Override sketchybarrc to ensure it's executable
     # (programs.sketchybar.config.source copies files but doesn't preserve +x)
     "sketchybar/sketchybarrc" = {
-      source = ../../../config/sketchybar/sketchybarrc;
+      source = ../../../../config/sketchybar/sketchybarrc;
       executable = true;
     };
 
@@ -96,5 +102,6 @@
 
         return M
       '';
+    };
   };
 }

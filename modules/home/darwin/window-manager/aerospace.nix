@@ -1,8 +1,18 @@
-{ pkgs, ... }:
-# AeroSpace: tiling window manager for macOS
-# https://nikitabobko.github.io/AeroSpace/guide.html
-# https://nix-community.github.io/home-manager/options.xhtml#opt-programs.aerospace.enable
+{ config, lib, pkgs, ... }:
+#
+# AeroSpace tiling window manager (https://nikitabobko.github.io/AeroSpace)
+#
+# Available options:
+# - home.apps.windowManager.aerospace.enable
+#
+let
+  cfg = config.home.apps.windowManager.aerospace;
+in
 {
+  options.home.apps.windowManager.aerospace.enable =
+    lib.mkEnableOption "AeroSpace tiling window manager";
+
+  config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
   programs.aerospace =
     let
       sketchybarPath = "${pkgs.sketchybar}/bin/sketchybar";
@@ -200,4 +210,5 @@
         ];
       };
     };
+  };
 }

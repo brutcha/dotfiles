@@ -15,7 +15,7 @@
 -- - Disconnected: 󰌙
 --
 -- SPEED CALCULATION:
--- TODO: find out why is value diffetrent than in btm
+-- TODO: find out why is value different than in btm
 -- - Uses netstat -ibn for en0 interface
 -- - Caches previous RX bytes and timestamp
 -- - Speed = (current_rx - prev_rx) / time_diff
@@ -26,7 +26,7 @@
 -- - Speed cache stored in /tmp/sketchybar_network_cache
 --
 -- UPDATE FREQUENCY: 5 seconds
--- ? wouldn't it make sense to create a rust/zig/c program to upate the widget?
+-- ? wouldn't it make sense to create a rust/zig/c program to update the widget?
 
 local colors = require("colors")
 local icons = require("icons")

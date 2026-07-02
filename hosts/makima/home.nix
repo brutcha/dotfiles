@@ -10,14 +10,8 @@
   # https://nix-community.github.io/home-manager/index.xhtml#sec-install-nix-darwin-module
   home.stateVersion = "25.05";
 
-  # Import user-level modules
   # https://nix-community.github.io/home-manager/
-  imports = [
-    ../../modules/home/theme.nix
-    ../../modules/home/fonts.nix
-    ../../modules/home/shell.nix
-    ../../modules/home/internet
-    ../../modules/home/development/darwin.nix
-    ../../modules/home/window-manager/darwin.nix
-  ];
+  imports = [ ../../modules/home/darwin ];
+
+  home.apps.internet.helium.enable = true;
 }
