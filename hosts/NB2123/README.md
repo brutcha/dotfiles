@@ -58,10 +58,10 @@ security add-generic-password -a du234 -s kdbx-master -w '<KDBX master password>
 mkdir -p ~/.config/dotfiles && chmod 0700 ~/.config/dotfiles
 cp hosts/NB2123/private.example.nix ~/.config/dotfiles/private.nix
 chmod 0600 ~/.config/dotfiles/private.nix
-$EDITOR ~/.config/dotfiles/private.nix   # user identity + npa org names
+$EDITOR ~/.config/dotfiles/private.nix   # user identity + per-project entries
 ```
 
-Expected fields: `user.{name,email}`, `npa.{projectId,adoOrganization,registryFeed,registryScope}`. **No `secrets` attribute** — that's all in the vault now.
+Expected fields: `user.{name,email}` and one entry per project under `projects.<name>` (each with `projectId`, `adoOrganization`, `packages`, and an optional `env` attrset). The project consumed by `registries.nix` for the `.yarnrc.yml` Azure Artifacts wiring must also carry `registryFeed` and `registryScope` — currently `projects.npaApp`. **No `secrets` attribute** — that's all in the vault now.
 
 ### 4. Rebuild
 

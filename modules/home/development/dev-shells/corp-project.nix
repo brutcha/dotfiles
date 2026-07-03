@@ -1,31 +1,28 @@
-{ osConfig, pkgs, lib, inputs, private }:
-#
-# Sidecar dev shell for the NPA project. Materializes flake.nix, .envrc,
-# and .emdash.json under ~/.local/share/dev-shells/<projectId>/ and
-# symlinks them into the checkout. Project identity from private.nix.
-#
+{ pkgs, lib, inputs, project, private }:
+# Per-project direnv sidecar. Instantiated from ./default.nix per private.projects entry.
 let
-  projectId = private.npa.projectId;
-  adoOrganization = private.npa.adoOrganization;
+  projectId = project.projectId;
+  adoOrganization = project.adoOrganization;
+  flakePackages = project.packages;
 
-  # CA bundle path comes from the host's cert-bundle.nix
-  # (`nix.settings.ssl-cert-file`). If the host doesn't set it, the export
-  # line is just omitted from shellHook.
-  caBundle = osConfig.nix.settings.ssl-cert-file or null;
-  caExport = lib.optionalString (caBundle != null && caBundle != "")
-    "export NODE_EXTRA_CA_CERTS=${caBundle}\n";
+  # Sanitize dots/dashes for use as a home.activation attribute name.
+  attrSafeId = builtins.replaceStrings [ "." "-" ] [ "_" "_" ] projectId;
+
+  # env.sh written at activation (chmod 0600); values may reference $CORP_* from keepassSecretsExtract.
+  envExports = lib.concatStringsSep ""
+    (lib.mapAttrsToList (k: v: "export ${k}=\"${v}\"\n")
+      (project.env or {}));
 
   shellHook = ''
-    ${caExport}if command -v claude >/dev/null 2>&1; then
+    envFile="$HOME/.local/share/dev-shells/${projectId}/env.sh"
+    [ -r "$envFile" ] && . "$envFile"
+    if command -v claude >/dev/null 2>&1; then
       claude mcp get atlassian    >/dev/null 2>&1 || \
         claude mcp add atlassian -s local --transport http https://mcp.atlassian.com/v1/mcp
       claude mcp get azure-devops >/dev/null 2>&1 || \
         claude mcp add azure-devops -s local -- npx -y @azure-devops/mcp ${adoOrganization}
     fi
   '';
-
-  # node-gyp needs python + make to build native modules.
-  flakePackages = [ "nodejs_22" "corepack" "python3" "gnumake" ];
 
   flakeContent = pkgs.replaceVars ./templates/node-project.flake.nix {
     inherit shellHook;
@@ -54,20 +51,26 @@ let
   });
 in
 {
-  home.activation.corpNpaSidecar = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+  home.activation."corpSidecar_${attrSafeId}" = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     $DRY_RUN_CMD install -d -m 0755 "$HOME/.local/share/dev-shells/${projectId}"
     $DRY_RUN_CMD install -m 0644 -T ${flakeContent} "$HOME/.local/share/dev-shells/${projectId}/flake.nix"
     $DRY_RUN_CMD install -m 0644 -T ${emdashConfig} "$HOME/.local/share/dev-shells/${projectId}/.emdash.json"
     $DRY_RUN_CMD install -m 0644 -T ${envrcContent} "$HOME/.local/share/dev-shells/${projectId}/.envrc"
 
-    # Auto-symlink sidecar files into the checkout at the conventional path.
-    # Skips per-file if the checkout is missing or a target already exists.
+    # Unquoted heredoc: $CORP_* refs in env values expand at write time. Add "keepassSecretsExtract" to entryAfter when using them.
+    tmpEnv="$(mktemp)"
+    cat > "$tmpEnv" <<ENV_EOF
+    ${envExports}ENV_EOF
+    $DRY_RUN_CMD install -m 0600 -T "$tmpEnv" "$HOME/.local/share/dev-shells/${projectId}/env.sh"
+    $DRY_RUN_CMD rm -f "$tmpEnv"
+
+    # Real files (not symlinks) so emdash preservePatterns copies them into worktrees.
     if [ -d "$HOME/git/${projectId}" ]; then
       for f in .emdash.json .envrc; do
-        # -L catches dangling symlinks that -e follows into non-existence.
-        { [ -e "$HOME/git/${projectId}/$f" ] || [ -L "$HOME/git/${projectId}/$f" ]; } && continue
-        $DRY_RUN_CMD ln -s "$HOME/.local/share/dev-shells/${projectId}/$f" \
-                           "$HOME/git/${projectId}/$f"
+        rm -f "$HOME/git/${projectId}/$f"
+        $DRY_RUN_CMD install -m 0644 -T \
+          "$HOME/.local/share/dev-shells/${projectId}/$f" \
+          "$HOME/git/${projectId}/$f"
       done
     fi
   '';
