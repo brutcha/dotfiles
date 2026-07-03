@@ -10,6 +10,7 @@
 # - orbstack: Docker Desktop alternative with better performance (macOS only)
 # - better-touch-tool: Gesture and touchpad configuration (macOS only)
 # - raycast: Spotlight replacement (macOS only — nixpkgs not cached for darwin)
+# - android-studio: IDE + AVD manager (macOS only — nixpkgs is Linux-only)
 # - ungoogled-chromium: Chromium without Google dependencies (macOS custom, Linux uses nixpkgs)
 #
 # Cross-platform packages:
@@ -43,6 +44,11 @@ final: prev: {
     if prev.stdenv.isDarwin
     then prev.callPackage ./raycast { inherit utils; }
     else prev.raycast;
+
+  android-studio =
+    if prev.stdenv.isDarwin
+    then prev.callPackage ./android-studio { inherit utils; }
+    else prev.android-studio;
 
   emdash = prev.callPackage ./emdash { inherit utils; };
 
