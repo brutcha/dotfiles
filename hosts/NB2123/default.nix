@@ -20,6 +20,7 @@
   imports = [
     ../../modules/darwin/minimal.nix
     ./cert-bundle.nix
+    ./sudoers.nix
     ../../modules/darwin/apps
     ../../modules/shared/apps
   ];
