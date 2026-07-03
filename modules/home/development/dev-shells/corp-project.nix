@@ -1,27 +1,22 @@
 { pkgs, lib, inputs, project, private }:
-#
-# Sidecar dev shell for a corp project. Materializes flake.nix, .envrc,
-# and .emdash.json under ~/.local/share/dev-shells/<projectId>/ and
-# symlinks them into the checkout. Instantiated per entry in
-# private.projects by ./default.nix; `private` is passed through only for
-# programs.git.includes (user.name/email).
-#
+# Per-project direnv sidecar. Instantiated from ./default.nix per private.projects entry.
 let
   projectId = project.projectId;
   adoOrganization = project.adoOrganization;
   flakePackages = project.packages;
 
-  # Attribute keys can technically contain dots, but home-manager routes
-  # activation names through a shell DAG — sanitize to be safe.
+  # Sanitize dots/dashes for use as a home.activation attribute name.
   attrSafeId = builtins.replaceStrings [ "." "-" ] [ "_" "_" ] projectId;
 
-  # Per-project env vars (NODE_EXTRA_CA_CERTS, YARN_ENABLE_GLOBAL_CACHE, …).
+  # env.sh written at activation (chmod 0600); values may reference $CORP_* from keepassSecretsExtract.
   envExports = lib.concatStringsSep ""
-    (lib.mapAttrsToList (k: v: "export ${k}=${lib.escapeShellArg v}\n")
+    (lib.mapAttrsToList (k: v: "export ${k}=\"${v}\"\n")
       (project.env or {}));
 
   shellHook = ''
-    ${envExports}if command -v claude >/dev/null 2>&1; then
+    envFile="$HOME/.local/share/dev-shells/${projectId}/env.sh"
+    [ -r "$envFile" ] && . "$envFile"
+    if command -v claude >/dev/null 2>&1; then
       claude mcp get atlassian    >/dev/null 2>&1 || \
         claude mcp add atlassian -s local --transport http https://mcp.atlassian.com/v1/mcp
       claude mcp get azure-devops >/dev/null 2>&1 || \
@@ -62,9 +57,14 @@ in
     $DRY_RUN_CMD install -m 0644 -T ${emdashConfig} "$HOME/.local/share/dev-shells/${projectId}/.emdash.json"
     $DRY_RUN_CMD install -m 0644 -T ${envrcContent} "$HOME/.local/share/dev-shells/${projectId}/.envrc"
 
-    # Materialize as real files in the checkout — emdash preservePatterns
-    # copies files, not symlinks, so worktrees created from ~/git/${projectId}
-    # inherit both. Idempotent overwrite on every activation.
+    # Unquoted heredoc: $CORP_* refs in env values expand at write time. Add "keepassSecretsExtract" to entryAfter when using them.
+    tmpEnv="$(mktemp)"
+    cat > "$tmpEnv" <<ENV_EOF
+    ${envExports}ENV_EOF
+    $DRY_RUN_CMD install -m 0600 -T "$tmpEnv" "$HOME/.local/share/dev-shells/${projectId}/env.sh"
+    $DRY_RUN_CMD rm -f "$tmpEnv"
+
+    # Real files (not symlinks) so emdash preservePatterns copies them into worktrees.
     if [ -d "$HOME/git/${projectId}" ]; then
       for f in .emdash.json .envrc; do
         rm -f "$HOME/git/${projectId}/$f"

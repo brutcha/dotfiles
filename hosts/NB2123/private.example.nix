@@ -13,9 +13,13 @@ in
 
   # Each entry becomes a per-project direnv sidecar via
   # modules/home/development/dev-shells/corp-project.nix. Every project
-  # declares its own packages + env exports (CA cert, workaround flags, …).
-  # registries.nix currently consumes `projects.npaApp.{adoOrganization,
-  # registryFeed,registryScope}` for the .yarnrc.yml Azure Artifacts wiring.
+  # declares its own packages + env exports. `env` values are written to
+  # $HOME/.local/share/dev-shells/<projectId>/env.sh at activation time
+  # (chmod 0600) and shell-expanded, so a value of "$CORP_XYZ" resolves
+  # against whatever keepassSecretsExtract has exported — same channel as
+  # registries.nix. registries.nix currently consumes
+  # `projects.npaApp.{adoOrganization,registryFeed,registryScope}` for the
+  # .yarnrc.yml Azure Artifacts wiring.
   projects = {
     npaApp = {
       projectId       = "MyOrg.Team.Project";

@@ -75,19 +75,18 @@ The macOS configuration uses [nix-homebrew](https://github.com/zhaofengli/nix-ho
 
 No node-version-manager is installed. Each project gets a flake-based sidecar shell delivered via home-manager and activated by direnv on `cd`.
 
-- Sidecar modules live in `modules/home/development/dev-shells/`
-- Each module materializes a real (non-symlink) `flake.nix` via `home.activation` — file content built with `pkgs.writeText`, copied to `~/.local/share/dev-shells/<project>/flake.nix`
-- The cloned project gets a one-line `.envrc`: `use flake ~/.local/share/dev-shells/<project>`
-- `.envrc` is hidden by the global gitignore in `modules/home/development/git.nix`
+- `modules/home/development/dev-shells/corp-project.nix` is the reusable per-project module. `default.nix` iterates over `private.projects` and instantiates it once per entry — adding a project is a `private.nix` edit, not a dotfiles change
+- Each activation materializes real (non-symlink) `flake.nix`, `.envrc`, `.emdash.json`, and `env.sh` under `~/.local/share/dev-shells/<projectId>/`, then copies `.envrc` + `.emdash.json` into `~/git/<projectId>/` as real files (emdash's `preservePatterns` doesn't follow symlinks into worktrees)
+- `env.sh` is written by the activation via unquoted heredoc (chmod 0600). `project.env` values that reference `$CORP_*` variables are expanded from whatever `keepassSecretsExtract` has exported — same channel as `registries.nix`
+- `.envrc` and `.emdash.json` are hidden by the global gitignore (`modules/home/development/git.nix` + `~/.config/git/ignore`)
 
 Why `home.activation` instead of `xdg.configFile`? home-manager writes `xdg.configFile` entries as symlinks into the nix store, but `nix flake` doesn't resolve a symlinked `flake.nix` inside an otherwise-real source directory — it generates a nested store path that doesn't exist. The activation script is the workaround.
 
 Sidecars inherit `inputs.nixpkgs.rev` and `pkgs.stdenv.hostPlatform.system` from the parent flake, so the same module works unchanged on darwin and (future) NixOS hosts.
 
 ### Adding a New Project
-1. Create `modules/home/development/dev-shells/<name>.nix` following the pattern in `corp-npa.nix`
-2. Add it to the `sidecars` list in `dev-shells/default.nix`
-3. Rebuild — flake.nix + .envrc + .emdash.json are staged and symlinked into `~/git/<projectId>/` automatically
+1. Add an entry to `projects.<name>` in `~/.config/dotfiles/private.nix` — see `hosts/NB2123/private.example.nix` for the required fields (`projectId`, `adoOrganization`, `packages`, `env`).
+2. Rebuild — sidecar files are materialized and copied into `~/git/<projectId>/` automatically.
 
 ## Git Configuration
 
@@ -97,7 +96,7 @@ Sidecars inherit `inputs.nixpkgs.rev` and `pkgs.stdenv.hostPlatform.system` from
 - **git-credential-manager** — browser-based OAuth for Azure DevOps and GitHub HTTPS clones, with tokens cached in the macOS keychain (or Secret Service on Linux)
 - **Identity via `includes`** — any `github.com/brutcha/*` remote picks up the brutcha identity automatically
 
-Host-specific extras layer on top per host, e.g. the corp CA bundle path and Azure DevOps `useHttpPath` scoping in `hosts/NB2123/home.nix`. Per-project identity overrides sit next to the project's own dev-shell module (e.g. `corp-npa.nix` sets the Creditas identity via `includeIf`).
+Host-specific extras layer on top per host, e.g. the corp CA bundle path and Azure DevOps `useHttpPath` scoping in `hosts/NB2123/home.nix`. Per-project identity overrides are wired by `corp-project.nix`: for each entry in `private.projects` it appends a `programs.git.includes` block with an `includeIf` matching the checkout path, so any commit from `~/git/<projectId>/` picks up `private.user.{name,email}` automatically.
 
 ## Update Inputs
 
