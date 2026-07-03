@@ -4,7 +4,7 @@
 # PAT injected at activation time from KeePassXC (see keepass module).
 #
 let
-  registryUrl = "//pkgs.dev.azure.com/${private.npa.adoOrganization}/_packaging/${private.npa.registryFeed}/npm/registry/";
+  registryUrl = "//pkgs.dev.azure.com/${private.projects.npaApp.adoOrganization}/_packaging/${private.projects.npaApp.registryFeed}/npm/registry/";
 in
 {
   home.file.".npmrc".text = ''
@@ -26,10 +26,10 @@ in
       npmRegistries:
         ${registryUrl}:
           npmAlwaysAuth: true
-          npmAuthIdent: "${private.npa.adoOrganization}:$CORP_AZURE_DEVOPS_PAT"
+          npmAuthIdent: "${private.projects.npaApp.adoOrganization}:$CORP_AZURE_DEVOPS_PAT"
 
       npmScopes:
-        ${private.npa.registryScope}:
+        ${private.projects.npaApp.registryScope}:
           npmRegistryServer: "https:${registryUrl}"
       EOF
       $DRY_RUN_CMD install -m 600 "$tmp" "$yarnrc"
