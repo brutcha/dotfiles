@@ -38,6 +38,7 @@
     };
     development = {
       orbstack.enable = false;
+      android-studio.enable = true;
     };
   };
 
@@ -56,7 +57,7 @@
       docker.enable = false;
       antigravity.enable = false;
       emdash.enable = true;
-      zed-editor.enable = true;          # binary via brew; settings via home.apps.development.zed
+      zed-editor.enable = true;
     };
   };
 
