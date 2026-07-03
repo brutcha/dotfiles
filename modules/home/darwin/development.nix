@@ -67,13 +67,18 @@ in
           tmp="$(mktemp)"
           if [ -f "$settings" ]; then
             $DRY_RUN_CMD chmod u+w "$settings" 2>/dev/null || true
-            ${pkgs.jq}/bin/jq \
-              '.hasOptedIn = false | .debugDisablePublishing = false | .lastOptinPromptVersion = "9999.9"' \
-              "$settings" > "$tmp"
+            if ${pkgs.jq}/bin/jq \
+                 '.hasOptedIn = false | .debugDisablePublishing = false | .lastOptinPromptVersion = "9999.9"' \
+                 "$settings" > "$tmp"; then
+              $DRY_RUN_CMD mv "$tmp" "$settings"
+            else
+              rm -f "$tmp"
+              echo "warn: jq failed to transform $settings; leaving file as-is" >&2
+            fi
           else
             printf '%s\n' '{"hasOptedIn":false,"debugDisablePublishing":false,"lastOptinPromptVersion":"9999.9"}' > "$tmp"
+            $DRY_RUN_CMD mv "$tmp" "$settings"
           fi
-          $DRY_RUN_CMD mv "$tmp" "$settings"
           $DRY_RUN_CMD chmod 0444 "$settings"
         '';
     })
