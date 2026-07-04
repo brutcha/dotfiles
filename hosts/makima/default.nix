@@ -35,7 +35,10 @@
 
     internet = {
       microsoft-teams.enable = true;
-      microsoft-outlook.enable = true;
+    };
+
+    media = {
+      affinity.enable = true;
     };
   };
 

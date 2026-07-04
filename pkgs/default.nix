@@ -60,4 +60,6 @@ final: prev: {
   microsoft-teams = prev.callPackage ./microsoft-teams { inherit utils; };
   
   microsoft-outlook = prev.callPackage ./microsoft-outlook { inherit utils; };
+  
+  affinity = prev.callPackage ./affinity { inherit utils; };
 }

@@ -9,5 +9,6 @@
     ./window-manager.nix
     ./development.nix
     ./internet.nix
+    ./media.nix
   ];
 }
