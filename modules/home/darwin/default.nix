@@ -7,7 +7,7 @@
   imports = [
     ../default.nix     # shared: theme, fonts, shell, development
     ./development.nix  # darwin dev extras: lazydocker, xcbuild
-    ./internet         # helium
+    ./internet         # davmail, helium
     ./security         # keepass
     ./window-manager   # aerospace, sketchybar, jankyborders
   ];

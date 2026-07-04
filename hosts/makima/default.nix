@@ -19,6 +19,7 @@
   # Modules are evaluated in order - later ones can override earlier ones
   imports = [
     ../../modules/darwin/minimal.nix
+    ./sudoers.nix
     ../../modules/darwin/apps
     ../../modules/shared/apps
   ];

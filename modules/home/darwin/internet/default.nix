@@ -1,4 +1,7 @@
 { ... }:
 {
-  imports = [ ./helium.nix ];
+  imports = [
+    ./davmail.nix
+    ./helium.nix
+  ];
 }

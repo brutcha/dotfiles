@@ -178,6 +178,11 @@
           username = "pavla";
           hostname = "makima";
           system = "aarch64-darwin";
+
+          # Per-host private values — template: hosts/makima/private.example.nix
+          # (nix's pathExists under sudo is unreliable; let `import` fail with a
+          # clearer file-not-found message if the file is missing)
+          private = import "/Users/${username}/.config/dotfiles/private.nix";
           pkgs = import nixpkgs {
             inherit system;
             config = { allowUnfree = true; };
@@ -192,13 +197,13 @@
         in
         nix-darwin.lib.darwinSystem {
           inherit system;
-          specialArgs = { inherit utils pkgs rootDir; };
+          specialArgs = { inherit utils pkgs rootDir private; };
 
           modules = [
             configuration
             ./hosts/${hostname}/default.nix
           ] ++ mkHomeConfig {
-            inherit username hostname;
+            inherit username hostname private;
             home = "/Users/${username}";
           } ++ mkHomebrewConfig {
             inherit username;
