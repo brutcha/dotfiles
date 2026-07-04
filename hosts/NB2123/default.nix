@@ -27,18 +27,17 @@
 
   darwin.apps = {
     system = {
-      aldente.enable = false;
       karabiner.enable = false;
       better-touch-tool.enable = false;
       ice.enable = true;
     };
+
     windowManager = {
       raycast.enable = true;
       altTab.enable = true;
-      blurred.enable = false;
     };
+
     development = {
-      orbstack.enable = false;
       android-studio.enable = true;
     };
   };
@@ -47,16 +46,17 @@
     system = {
       insync.enable = false;
     };
+
     internet = {
       telegram.enable = false;
       slack.enable = false;
       discord.enable = false;
       protonmail-bridge.enable = false;
     };
+
     development = {
       postman.enable = false;
       docker.enable = false;
-      antigravity.enable = false;
       emdash.enable = true;
       zed-editor.enable = true;
     };

@@ -26,11 +26,8 @@ in
     development = {
       direnv.enable = true;
       ghostty.enable = true;
-      tmux.enable = true;
-      git.enable = true;                     # auto-enables lazygit
+      git.enable = true;
       zed.enable = true;
-      # xcbuild.enable auto-defaults from direnv
-      # lazydocker.enable auto-defaults from orbstack/docker
 
       # Public env only; JWT + base URL injected at activation time from
       # KeePassXC (see home.activation.claudeCodeCorpSecrets below).

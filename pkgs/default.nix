@@ -56,4 +56,8 @@ final: prev: {
     if prev.stdenv.isDarwin
     then prev.callPackage ./zed-editor { inherit utils; }
     else prev.zed-editor;
+  
+  microsoft-teams = prev.callPackage ./microsoft-teams { inherit utils; };
+  
+  microsoft-outlook = prev.callPackage ./microsoft-outlook { inherit utils; };
 }
