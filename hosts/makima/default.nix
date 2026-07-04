@@ -13,6 +13,7 @@
 #
 # Note: Installation source (Nix vs Homebrew) is abstracted away
 #
+{ config, ... }:
 {
   # Import system modules to compose the configuration
   # Modules are evaluated in order - later ones can override earlier ones
@@ -31,11 +32,11 @@
       raycast.enable = true;
       altTab.enable = true;
     };
-  };
-  
-  darwin.internet = {
-    microsoft-teams.enable = true;
-    microsoft-outlook.enable = true;
+
+    internet = {
+      microsoft-teams.enable = true;
+      microsoft-outlook.enable = true;
+    };
   };
 
   shared.apps = { };
@@ -100,7 +101,7 @@
 
   # https://mynixos.com/nix-darwin/options/system.defaults.screencapture
   system.defaults.screencapture = {
-    location = "~/Pictures/Screenshots";
+    location = "/Users/${config.system.primaryUser}/Pictures/Screenshots";
     type = "png";
     disable-shadow = true;
   };
