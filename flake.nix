@@ -175,7 +175,7 @@
       # macOS system configuration for makima (personal MacBook)
       darwinConfigurations.makima =
         let
-          username = "brutcha";
+          username = "pavla";
           hostname = "makima";
           system = "aarch64-darwin";
           pkgs = import nixpkgs {

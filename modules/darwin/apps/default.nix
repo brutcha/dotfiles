@@ -8,5 +8,6 @@
     ./system.nix
     ./window-manager.nix
     ./development.nix
+    ./internet.nix
   ];
 }

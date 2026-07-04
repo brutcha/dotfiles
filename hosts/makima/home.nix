@@ -13,5 +13,13 @@
   # https://nix-community.github.io/home-manager/
   imports = [ ../../modules/home/darwin ];
 
-  home.apps.internet.helium.enable = true;
+  home.apps = {
+    development = {
+      ghostty.enable = true;
+      git.enable = true;
+      claude-code.enable = true;
+    };
+
+    internet.helium.enable = true;
+  };
 }
