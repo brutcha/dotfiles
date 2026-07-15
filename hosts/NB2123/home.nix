@@ -3,7 +3,7 @@
 #
 { config, lib, pkgs, ... }:
 let
-  keepassxcCli = "${pkgs.keepassxc}/Applications/KeePassXC.app/Contents/MacOS/keepassxc-cli";
+  keepassxcCli = pkgs.keepassxc.passthru.cli;
   vaultPath = "${config.home.homeDirectory}/.config/dotfiles/vault.kdbx";
   # env var name → KDBX entry path (Password attribute).
   corpSecrets = {

@@ -18,12 +18,19 @@
 # - zed-editor: Editor (brew cask on macOS — nixpkgs not cached for darwin;
 #   Linux uses nixpkgs version)
 # - obs-studio: Screen recorder/streamer (brew cask on macOS — nixpkgs is Linux-only)
+# - keepassxc: Password manager (brew cask on macOS — sidesteps qtmacextras
+#   linker crash; Linux uses nixpkgs)
 #
 # This overlay is applied in flake.nix when creating the pkgs instance.
 #
 { utils }:
 final: prev: {
-  insync = 
+  keepassxc =
+    if prev.stdenv.isDarwin
+    then prev.callPackage ./keepassxc { inherit utils; }
+    else prev.keepassxc;
+
+  insync =
     if prev.stdenv.isDarwin
     then prev.callPackage ./insync { inherit utils; }
     else prev.insync;

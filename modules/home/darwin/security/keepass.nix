@@ -3,7 +3,8 @@
 # KeePassXC password manager
 #
 # Available options:
-# - home.apps.security.keepass.enable - Install KeePassXC, configure browser integration
+# - home.apps.security.keepass.enable - Configure browser integration
+#   (auto-installs the Homebrew cask via shared.apps.security.keepassxc)
 #
 # Browser integration: install the KeePassXC-Browser extension in the
 # browser (Helium uses the same .crx as Chromium-family). The native
@@ -18,7 +19,7 @@ let
   cfg = config.home.apps.security.keepass;
 
   chromeExtensionId = "oboonakemofpalcgghocfoadofidjkkk";
-  keepassxcProxy = "${pkgs.keepassxc}/Applications/KeePassXC.app/Contents/MacOS/keepassxc-proxy";
+  keepassxcProxy = pkgs.keepassxc.passthru.proxy;
   nativeMessagingManifest = builtins.toJSON {
     name = "org.keepassxc.keepassxc_browser";
     description = "KeePassXC integration with native messaging support";
@@ -60,8 +61,6 @@ in
 
   config = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (lib.mkMerge [
     (lib.mkIf cfg.enable {
-      programs.keepassxc.enable = true;
-
       home.activation.keepassxcSettings =
         lib.hm.dag.entryAfter [ "writeBoundary" ] ''
           configPath="$HOME/Library/Application Support/KeePassXC/keepassxc.ini"

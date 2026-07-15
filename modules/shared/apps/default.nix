@@ -11,5 +11,6 @@
     ./development.nix
     ./system.nix
     ./media.nix
+    ./security.nix
   ];
 }

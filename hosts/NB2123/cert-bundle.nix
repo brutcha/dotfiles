@@ -6,7 +6,7 @@
 # bootstrap — no reliance on home-manager writing an intermediate PEM.
 #
 let
-  keepassxcCli = "${pkgs.keepassxc}/Applications/KeePassXC.app/Contents/MacOS/keepassxc-cli";
+  keepassxcCli = pkgs.keepassxc.passthru.cli;
 
   # Runs as the primary user, in that user's launchd/keychain session context.
   # Args: <user> <vault-path> <output-path>
