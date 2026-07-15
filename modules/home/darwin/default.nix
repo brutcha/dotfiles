@@ -8,6 +8,7 @@
     ../default.nix     # shared: theme, fonts, shell, development
     ./development.nix  # darwin dev extras: lazydocker, xcbuild
     ./internet         # davmail, helium
+    ./media            # obs-studio (scene + profile)
     ./security         # keepass
     ./window-manager   # aerospace, sketchybar, jankyborders
   ];

@@ -17,6 +17,7 @@
 # - emdash: Multi-agent dev environment (brew cask on macOS, AppImage on Linux)
 # - zed-editor: Editor (brew cask on macOS — nixpkgs not cached for darwin;
 #   Linux uses nixpkgs version)
+# - obs-studio: Screen recorder/streamer (brew cask on macOS — nixpkgs is Linux-only)
 #
 # This overlay is applied in flake.nix when creating the pkgs instance.
 #
@@ -62,4 +63,6 @@ final: prev: {
   microsoft-outlook = prev.callPackage ./microsoft-outlook { inherit utils; };
   
   affinity = prev.callPackage ./affinity { inherit utils; };
+
+  obs-studio = prev.callPackage ./obs-studio { inherit utils; };
 }

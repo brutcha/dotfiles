@@ -16,7 +16,7 @@ in
     lib.mkEnableOption "git user config + GCM (browser OAuth for ADO/GitHub)";
 
   config = lib.mkIf cfg.enable {
-    home.packages = [ pkgs.git-credential-manager ];
+    home.packages = [ pkgs.git-credential-manager pkgs.gh ];
 
     programs.git = {
       enable = true;

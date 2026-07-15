@@ -10,5 +10,6 @@
     ./internet.nix
     ./development.nix
     ./system.nix
+    ./media.nix
   ];
 }

@@ -46,6 +46,8 @@ in
 
     internet.helium.enable = true;
 
+    media.obs.enable = true;
+
     security.keepass.enable = true;
 
     # broken on this host — leave off until fixed

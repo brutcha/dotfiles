@@ -60,6 +60,7 @@
       emdash.enable = true;
       zed-editor.enable = true;
     };
+
   };
 
   # PATH GUI apps inherit (empty by default on macOS — breaks Emdash MCP spawn).

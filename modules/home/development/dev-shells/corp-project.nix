@@ -13,6 +13,8 @@ let
     (lib.mapAttrsToList (k: v: "export ${k}=\"${v}\"\n")
       (project.env or {}));
 
+  # ignore-scripts flag for the @azure-devops is included to skip post install script which uses system
+  # wide npm instead of the one used by direnv
   shellHook = ''
     envFile="$HOME/.local/share/dev-shells/${projectId}/env.sh"
     [ -r "$envFile" ] && . "$envFile"
@@ -20,7 +22,7 @@ let
       claude mcp get atlassian    >/dev/null 2>&1 || \
         claude mcp add atlassian -s local --transport http https://mcp.atlassian.com/v1/mcp
       claude mcp get azure-devops >/dev/null 2>&1 || \
-        claude mcp add azure-devops -s local -- npx -y @azure-devops/mcp ${adoOrganization}
+        claude mcp add azure-devops -s local -- npx -y --ignore-scripts @azure-devops/mcp ${adoOrganization}
     fi
   '';
 
@@ -42,7 +44,7 @@ let
       ".claude/.custom/**"
       ".claude/.custom-autoload/**"
     ];
-    shellSetup = "";
+    shellSetup = ''eval "$(direnv export bash)"'';
     scripts = {
       setup = "direnv allow . && direnv exec . yarn install --frozen-lockfile && direnv exec . yarn gitnexus-analyze --skip-agents-md";
       run = "";

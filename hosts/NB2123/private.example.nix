@@ -26,7 +26,7 @@ in
       adoOrganization = "myorg";
       registryFeed    = "feed-name%40Local";  # URL-encoded
       registryScope   = "myorg";              # npm scope prefix (@myorg/...)
-      packages        = [ "nodejs_22" "corepack" "python3" "gnumake" ];
+      packages        = [ "nodejs_22" "corepack_22" "python3" "gnumake" ];
       env = {
         NODE_EXTRA_CA_CERTS = corpCaBundle;
       };
@@ -34,7 +34,7 @@ in
     # feApp = {
     #   projectId       = "MyOrg.Other.Project";
     #   adoOrganization = "myorg";
-    #   packages        = [ "nodejs_22" "corepack" ];
+    #   packages        = [ "nodejs_22" "corepack_22" ];
     #   env = {
     #     NODE_EXTRA_CA_CERTS      = corpCaBundle;
     #     YARN_ENABLE_GLOBAL_CACHE = "1";
