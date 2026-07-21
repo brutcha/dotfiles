@@ -4,6 +4,6 @@
 # still prompt normally.
 {
   security.sudo.extraConfig = lib.mkAfter ''
-    ${config.system.primaryUser} ALL=(root) NOPASSWD: /run/current-system/sw/bin/nix run nix-darwin/master\#darwin-rebuild -- switch --flake * --impure
+    ${config.system.primaryUser} ALL=(root) NOPASSWD: /run/current-system/sw/bin/nix run nix-darwin/master\#darwin-rebuild -- switch --flake *
   '';
 }
