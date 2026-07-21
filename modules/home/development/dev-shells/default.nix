@@ -8,7 +8,7 @@
 #
 let
   mk = project: import ./corp-project.nix {
-    inherit pkgs lib inputs project private;
+    inherit pkgs lib inputs project private config;
   };
   projects = if private != null then (private.projects or {}) else {};
   sidecars = lib.mapAttrsToList (_: mk) projects;

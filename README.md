@@ -38,7 +38,7 @@ modules/         # Reusable modules
 └── home/           # User-level home-manager modules
     ├── default.nix     # Shared aggregator (platform-generic)
     ├── theme.nix / fonts.nix / shell.nix
-    ├── development/    # Cross-platform dev: direnv, ghostty, nvim, git, rtk, zed, claude-code, dev-shells/
+    ├── development/    # Cross-platform dev: direnv, ghostty, nvim, git, rtk, zed, claude-code, codex, dev-shells/
     └── darwin/         # macOS-only bundle (imports shared + darwin-only extras)
         ├── default.nix        # Aggregator + LaunchServices registration
         ├── development.nix    # lazydocker, xcbuild
@@ -79,6 +79,7 @@ No node-version-manager is installed. Each project gets a flake-based sidecar sh
 - Each activation materializes real (non-symlink) `flake.nix`, `.envrc`, `.emdash.json`, and `env.sh` under `~/.local/share/dev-shells/<projectId>/`, then copies `.envrc` + `.emdash.json` into `~/git/<projectId>/` as real files (emdash's `preservePatterns` doesn't follow symlinks into worktrees)
 - `env.sh` is written by the activation via unquoted heredoc (chmod 0600). `project.env` values that reference `$CORP_*` variables are expanded from whatever `keepassSecretsExtract` has exported — same channel as `registries.nix`
 - `.envrc` and `.emdash.json` are hidden by the global gitignore (`modules/home/development/git.nix` + `~/.config/git/ignore`)
+- `project.mcpServers` is a data-driven attrset consumed by both agents: Claude registers each entry via `claude mcp add -s local` on direnv entry (cwd-scoped), and Codex renders `<projectHome>/codex/config.toml` with those entries merged over the host-global MCP defaults. `env.sh` also exports `CODEX_HOME=<projectHome>/codex`, so direnv-aware terminals AND Emdash worktrees (`shellSetup = eval "$(direnv export bash)"`) automatically resolve to the per-project Codex home. `auth.json` is symlinked back to `~/.codex/auth.json` so a single `codex login` covers every project
 
 Why `home.activation` instead of `xdg.configFile`? home-manager writes `xdg.configFile` entries as symlinks into the nix store, but `nix flake` doesn't resolve a symlinked `flake.nix` inside an otherwise-real source directory — it generates a nested store path that doesn't exist. The activation script is the workaround.
 

@@ -30,6 +30,30 @@ in
       env = {
         NODE_EXTRA_CA_CERTS = corpCaBundle;
       };
+
+      # Optional. Per-project MCP servers, consumed by both agents:
+      #   - Claude: `claude mcp add -s local` on direnv entry (cwd-scoped
+      #     via .claude/settings.local.json).
+      #   - Codex:  merged into <projectHome>/codex/config.toml at
+      #     home-manager activation; direnv exports CODEX_HOME so terminals
+      #     and Emdash worktrees pick up the per-project set automatically.
+      # Schema — one of:
+      #   { type = "http";  url = "..."; }
+      #   { type = "stdio"; command = "..."; args = [ ... ]; }
+      mcpServers = {
+        # atlassian = {
+        #   type = "http";
+        #   url  = "https://mcp.atlassian.com/v1/mcp";
+        # };
+        # azure-devops = {
+        #   type    = "stdio";
+        #   command = "npx";
+        #   # --ignore-scripts skips the postinstall that would shell out
+        #   # to the system npm instead of the one direnv provides.
+        #   args    = [ "-y" "--ignore-scripts" "@azure-devops/mcp" "myorg" ];
+        # };
+      };
+
     };
     # feApp = {
     #   projectId       = "MyOrg.Other.Project";
@@ -40,5 +64,25 @@ in
     #     YARN_ENABLE_GLOBAL_CACHE = "1";
     #   };
     # };
+  };
+
+  # Host-global Claude Code plugin marketplaces + plugin picks.
+  # Wired into programs.claude-code.{marketplaces,plugins} by NB2123/home.nix.
+  # `builtins.fetchGit` clones with the user's git credentials, so ADO auth
+  # (git credential helper / PAT) must be set up on the machine. URLs stay
+  # out of flake.lock because fetchGit is called at eval time, not as a
+  # flake input. Bump `ref`/add `rev` to pin an exact revision.
+  claude = {
+    marketplaces = {
+      # my-marketplace = {
+      #   url = "https://dev.azure.com/<org>/<project>/_git/<marketplace-repo>";
+      #   ref = "main";
+      # };
+    };
+    plugins = [
+      # `marketplace` matches an attr key above; `path` is the plugin dir
+      # inside that repo (typically "plugins/<plugin-name>").
+      # { marketplace = "my-marketplace"; path = "plugins/plugin-name"; }
+    ];
   };
 }

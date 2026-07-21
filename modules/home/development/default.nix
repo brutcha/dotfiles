@@ -15,6 +15,7 @@ in
   imports = [
     ./nvim.nix
     ./claude-code.nix
+    ./codex.nix
     ./rtk.nix
     ./git.nix
     ./zed.nix
