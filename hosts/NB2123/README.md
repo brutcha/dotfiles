@@ -32,6 +32,8 @@ Symlink the corp KDBX at `~/.config/dotfiles/vault.kdbx` (typical: OneDrive-sync
 | `corp/anthropic-jwt` | Password | Corp Anthropic-gateway JWT |
 | `corp/anthropic-base-url` | Password | Gateway URL (e.g. `https://proxy.corp/v1/claude`) |
 | `corp/azure-devops-pat` | Password | Azure DevOps Artifacts PAT |
+| `corp/codex-api-key` | Password | Personal WSO2 apiKey for the Codex proxy |
+| `corp/codex-base-url` | Password | Codex proxy URL (e.g. `https://proxy.corp/v1/codex`) |
 | `corp/ca-bundle` | Attachment `ca.pem` | Corp internal CA in PEM format |
 
 ```bash
@@ -40,6 +42,8 @@ keepassxc-cli mkdir "$DB" corp
 keepassxc-cli add -p "$DB" corp/anthropic-jwt
 keepassxc-cli add -p "$DB" corp/anthropic-base-url
 keepassxc-cli add -p "$DB" corp/azure-devops-pat
+keepassxc-cli add -p "$DB" corp/codex-api-key
+keepassxc-cli add -p "$DB" corp/codex-base-url
 keepassxc-cli add "$DB" corp/ca-bundle
 keepassxc-cli attachment-import "$DB" corp/ca-bundle ca.pem /path/to/corp-ca.pem
 ```
@@ -68,9 +72,12 @@ Expected fields: `user.{name,email}` and one entry per project under `projects.<
 Two activations do the work:
 
 - `cert-bundle.nix` (system) — extracts `corp/ca-bundle` via `launchctl asuser + sudo -u du234 keepassxc-cli`, merges with `/etc/ssl/cert.pem` into `/etc/nix/cert-bundle.pem`.
-- `hosts/NB2123/home.nix` (user, home-manager) — extracts the three env-var secrets, injects into `~/.claude/settings.json` (JWT + base URL) and `~/.yarnrc.yml` (PAT).
+- `hosts/NB2123/home.nix` (user, home-manager) — extracts the env-var secrets and applies them:
+  - Claude: injects `corp/anthropic-jwt` + `corp/anthropic-base-url` into `~/.claude/settings.json`.
+  - Codex: substitutes `__CORP_CODEX_BASE_URL__` in `~/.codex/config.toml` from `corp/codex-base-url` and runs `codex login --with-api-key` with `corp/codex-api-key` (fingerprint-gated — only re-runs on key rotation). Per-project `<projectHome>/codex/config.toml` files are produced by the dev-shells activation with the same substitution; per-project `auth.json` is symlinked back to `~/.codex/auth.json`.
+  - Azure DevOps: writes `corp/azure-devops-pat` into `~/.yarnrc.yml`.
 
-Both fetch the master password from Keychain (`security find-generic-password -a du234 -s kdbx-master`), so no interactive prompts.
+All fetch the master password from Keychain (`security find-generic-password -a du234 -s kdbx-master`), so no interactive prompts.
 
 ## Corp gateway trust chain (TLS on VPN)
 
@@ -93,4 +100,5 @@ Do once after first rebuild:
 - **alt-tab** — grant Accessibility permission (SIP-protected TCC.db)
 - **Raycast** — open once; auto-registers as a login item
 - **Claude Code** — `/theme light` (opted out of nix-codifying the theme)
+- **Codex OAuth MCPs** — run `codex mcp login <name>` once per host for MCPs that need OAuth (`atlassian`, `figma`, …). Since per-project `auth.json` files symlink to `~/.codex/auth.json`, one login covers every project on this machine.
 - **macOS** — log out + back in once for the symbolic-hotkeys plist to take effect
