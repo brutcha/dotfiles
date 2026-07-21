@@ -52,14 +52,16 @@ let
       ${claudeAddLines}
       fi'';
 
-  # For each per-project MCP: if `codex mcp list` reports it "Not logged in",
-  # trigger `codex mcp login <name>` when the shell is a TTY (browser OAuth
-  # can complete). Otherwise just print a hint — never block a non-interactive
-  # shell on an OAuth handshake that has no way to finish.
+  # For each per-project MCP: if `codex mcp list --json` reports it in the
+  # OAuth-needed state, trigger `codex mcp login <name>` when the shell is a
+  # TTY (browser OAuth can complete). Otherwise just print a hint — never
+  # block a non-interactive shell on an OAuth handshake that has no way to
+  # finish. JSON is queried by name so entries like "context7" don't match
+  # substrings elsewhere in the tabular output.
   codexLoginLines = lib.concatMapStringsSep "\n" (name:
     let n = lib.escapeShellArg name; in
     ''
-      if printf '%s\n' "$codex_mcp_list" | ${pkgs.gawk}/bin/awk -v n=${n} '$1==n' | grep -q "Not logged in"; then
+      if printf '%s' "$codex_mcp_list" | ${pkgs.jq}/bin/jq -e --arg n ${n} '.[] | select(.name == $n) | select(.auth_status == "o_auth")' >/dev/null 2>&1; then
         if [ -t 0 ] && [ -t 1 ]; then
           echo "codex: MCP ${name} needs OAuth — opening browser" >&2
           codex mcp login ${n} || echo "warn: codex mcp login ${name} failed" >&2
@@ -74,7 +76,7 @@ let
     else ''
 
       if command -v codex >/dev/null 2>&1; then
-        codex_mcp_list="$(codex mcp list 2>/dev/null || true)"
+        codex_mcp_list="$(codex mcp list --json 2>/dev/null || echo '[]')"
       ${codexLoginLines}
       fi'';
 

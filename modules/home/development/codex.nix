@@ -48,14 +48,22 @@ let
 
   # Discriminated submodule -> Codex TOML shape. Fields are read with `or`
   # defaults so raw attrsets (e.g. project.mcpServers straight from private.nix)
-  # work alongside typed submodule inputs.
+  # work alongside typed submodule inputs. Required per-type fields are checked
+  # explicitly so a bad entry surfaces as a clear config error instead of
+  # producing a TOML with `url = null` (which Codex would then reject at runtime).
   #   http  -> { url = ...; }
   #   stdio -> { command = ...; args = [...]; env = { ... }; }  (env dropped when empty)
   toTomlServer = name: s:
+    let
+      require = field: value:
+        if value == null then
+          throw "codex.nix: mcp_servers.${name} is type '${s.type}' but has no '${field}' — set mcpServers.${name}.${field}."
+        else value;
+    in
     if s.type or null == "http" then
-      { url = s.url; }
+      { url = require "url" (s.url or null); }
     else if s.type or null == "stdio" then
-      { command = s.command; args = s.args or [ ]; } //
+      { command = require "command" (s.command or null); args = s.args or [ ]; } //
         lib.optionalAttrs ((s.env or { }) != { }) { env = s.env; }
     else throw "codex.nix: mcp_servers.${name}.type '${s.type or "<unset>"}' unsupported (want 'http' or 'stdio').";
 
