@@ -42,15 +42,25 @@ let
   envrcContent = pkgs.writeText ".envrc"
     "use flake ~/.local/share/dev-shells/${projectId}\n";
 
+  # Single source of truth for emdash `preservePatterns`. Written both into the
+  # base project's `.emdash.json` (worktree-runtime fallback source) and into
+  # emdash's own SQLite `project_settings` row (authoritative at worktree-
+  # provisioning time). The emdashDbSync activation below keeps the DB copy in
+  # sync with this list.
+  # Order matches what emdash's DB carries (append-only history via
+  # json_set/UI edits), so `[ "$current" = "$expected" ]` in the sync
+  # activation is a no-op once initial sync has run.
+  emdashPreservePatterns = [
+    ".env"
+    ".env.local"
+    ".envrc"
+    ".claude/.custom/**"
+    ".claude/.custom-autoload/**"
+    ".emdash.json"
+  ];
+
   emdashConfig = pkgs.writeText ".emdash.json" (builtins.toJSON {
-    preservePatterns = [
-      ".env"
-      ".env.local"
-      ".envrc"
-      ".emdash.json"
-      ".claude/.custom/**"
-      ".claude/.custom-autoload/**"
-    ];
+    preservePatterns = emdashPreservePatterns;
     shellSetup = ''. "$HOME/.local/share/dev-shells/${projectId}/env.sh"'';
     scripts = {
       setup = "direnv allow . && direnv exec . yarn install --frozen-lockfile && direnv exec . yarn gitnexus-analyze --skip-agents-md";
@@ -184,6 +194,35 @@ in
         fi
       done
     ''}
+    '';
+
+  # Keep emdash's SQLite `preservePatterns` for this project in sync with the
+  # Nix-declared list. Emdash uses the DB (not the base `.emdash.json`) when
+  # provisioning a new worktree, so without this the list drifts and new
+  # worktrees miss files like `.emdash.json` itself. Idempotent + fail-open.
+  home.activation."emdashDbSync_${attrSafeId}" =
+    lib.hm.dag.entryAfter [ "corpSidecar_${attrSafeId}" ] ''
+      db="$HOME/Library/Application Support/emdash/emdash4.db"
+      [ -f "$db" ] || exit 0                     # emdash not installed → skip
+      projRow="$(${pkgs.sqlite}/bin/sqlite3 "$db" \
+        "SELECT id FROM projects WHERE path = '$HOME/git/${projectId}';")"
+      [ -n "$projRow" ] || exit 0                # project not imported yet → skip
+
+      expected='${builtins.toJSON emdashPreservePatterns}'
+      current="$(${pkgs.sqlite}/bin/sqlite3 "$db" \
+        "SELECT json_extract(shareable_project_settings_json, '\$.preservePatterns')
+         FROM project_settings WHERE project_id = '$projRow';")"
+      [ "$current" = "$expected" ] && exit 0     # already in sync → no-op
+
+      if ${pkgs.procps}/bin/pgrep -qf '/Applications/emdash.app'; then
+        echo "warn: emdash running during ${projectId} DB sync — quit + rebuild if the new value doesn't stick" >&2
+      fi
+      $DRY_RUN_CMD ${pkgs.sqlite}/bin/sqlite3 "$db" "UPDATE project_settings
+        SET shareable_project_settings_json =
+              json_set(shareable_project_settings_json, '\$.preservePatterns', json('$expected')),
+            updated_at = datetime('now')
+        WHERE project_id = '$projRow';"
+      echo "emdash: synced ${projectId} preservePatterns" >&2
     '';
 
   programs.git.includes = [
