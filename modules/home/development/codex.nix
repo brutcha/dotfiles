@@ -75,8 +75,10 @@ let
         lib.optionalAttrs ((s.authorization_env_var or null) != null)
           { http_headers.Authorization = "$" + s.authorization_env_var; }
     else if s.type or null == "stdio" then
-      { command = require "command" (s.command or null); args = s.args or [ ]; } //
-        lib.optionalAttrs ((s.env or { }) != { }) { env = s.env; }
+      lib.throwIf ((s.authorization_env_var or null) != null)
+        "codex.nix: mcp_servers.${name} is stdio — authorization_env_var only applies to http transport (Codex has no runtime header injection for stdio; set env instead)."
+        ({ command = require "command" (s.command or null); args = s.args or [ ]; } //
+          lib.optionalAttrs ((s.env or { }) != { }) { env = s.env; })
     else throw "codex.nix: mcp_servers.${name}.type '${s.type or "<unset>"}' unsupported (want 'http' or 'stdio').";
 
   tomlFormat = pkgs.formats.toml { };
