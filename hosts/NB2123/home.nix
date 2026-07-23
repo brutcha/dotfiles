@@ -7,16 +7,24 @@ let
   vaultPath = "${config.home.homeDirectory}/.config/dotfiles/vault.kdbx";
   # env var name → KDBX entry path (Password attribute).
   corpSecrets = {
-    CORP_ANTHROPIC_JWT      = "corp/anthropic-jwt";
-    CORP_ANTHROPIC_BASE_URL = "corp/anthropic-base-url";
-    CORP_AZURE_DEVOPS_PAT   = "corp/azure-devops-pat";
-    CORP_CODEX_API_KEY      = "corp/codex-api-key";
-    CORP_CODEX_BASE_URL     = "corp/codex-base-url";
+    CORP_ANTHROPIC_JWT              = "corp/anthropic-jwt";
+    CORP_ANTHROPIC_BASE_URL         = "corp/anthropic-base-url";
+    CORP_AZURE_DEVOPS_MCP           = "corp/azure-devops-mcp";
+    CORP_AZURE_DEVOPS_NPMRC         = "corp/azure-devops-npmrc";
+    CORP_AZURE_DEVOPS_RELEASE_TOKEN = "corp/azure-devops-release-token";
+    CORP_CODEX_API_KEY              = "corp/codex-api-key";
+    CORP_CODEX_BASE_URL             = "corp/codex-base-url";
+    CORP_ATLASSIAN_TOKEN            = "corp/atlassian-token";
+    CORP_CONFLUENCE_TOKEN           = "corp/confluence-token";
+    CORP_TEMPO_TOKEN                = "corp/tempo-token";
+    CORP_ROVO_TOKEN                 = "corp/rovo-token";
+    CORP_WSO2_TECH_PASSWORD_TST     = "corp/wso2-tech-password-tst";
+    CORP_WSO2_TECH_PASSWORD_ITG     = "corp/wso2-tech-password-itg";
+    CORP_PHRASE_ACCESS_TOKEN        = "corp/phrase-access-token";
+    CORP_FIGMA_ACCESS_TOKEN         = "corp/figma-access-token";
   };
 
   # Corp Claude Code marketplaces + plugin picks, sourced from private.nix
-  # so ADO URLs never enter flake.lock. `builtins.fetchGit` runs at eval
-  # time and defers auth to the user's git credential helper.
   corpMarketplaces = lib.mapAttrs (_: cfg: fetchGit cfg)
     (private.claude.marketplaces or { });
   corpPlugins = map
@@ -31,13 +39,12 @@ in
     ./registries.nix              # NB2123-only npm/yarn corp registries
   ];
 
-  # Per-host opt-in for home-manager apps. Mirrors the darwin.apps.* /
-  # shared.apps.* pattern but for user-level (home-manager) modules.
   home.apps = {
     development = {
       direnv.enable = true;
       ghostty.enable = true;
       git.enable = true;
+      podman.enable = true;
       zed.enable = true;
 
       # Public env only; JWT + base URL injected at activation time from
@@ -54,15 +61,15 @@ in
         };
       };
 
-      # base_url placeholder + `codex login --with-api-key` are patched in
-      # at activation time by home.activation.codexCorpSecrets below.
+      # base_url $CORP_CODEX_BASE_URL ref + `codex login --with-api-key` are
+      # patched in at activation by home.activation.codexCorpSecrets below.
       codex = {
         enable = true;
         settings = {
           model_provider = "openai-proxy";
           model_providers.openai-proxy = {
             name = "OpenAI via Node proxy (Codex) -> AID ITG";
-            base_url = "__CORP_CODEX_BASE_URL__";
+            base_url = "$CORP_CODEX_BASE_URL";
             wire_api = "responses";
             supports_websockets = false;
           };
@@ -84,11 +91,7 @@ in
     };
   };
 
-  # Extract corp secrets from KeePassXC at activation, using the KDBX master
-  # password cached in macOS Keychain. Bootstrap once per machine:
-  #   security add-generic-password -a du234 -s kdbx-master -w '<master>' -T /usr/bin/security
-  # (`-T /usr/bin/security` restricts ACL to the security binary — the only
-  # thing that reads this item. `-A` is broader and should be avoided.)
+  # Extract corp secrets from KeePassXC at activation
   home.activation.keepassSecretsExtract =
     lib.hm.dag.entryAfter [ "linkGeneration" ] ''
       if [ ! -f "${vaultPath}" ]; then
@@ -125,21 +128,23 @@ in
       fi
     '';
 
-  # Patch the corp proxy URL into config.toml and run `codex login` once per
-  # WSO2 key rotation. Fingerprint gate keeps rebuilds idempotent — auth.json
-  # is only rewritten when the KDBX-held key actually changes.
+  # Resolve `$VAR` refs in ~/.codex/config.toml, then run `codex login`
   home.activation.codexCorpSecrets =
     lib.hm.dag.entryAfter [ "keepassSecretsExtract" "codexBase" ] ''
       unset CODEX_HOME
       configPath="$HOME/.codex/config.toml"
 
-      if [ -n "''${CORP_CODEX_BASE_URL:-}" ] && [ -f "$configPath" ]; then
+      if [ -f "$configPath" ]; then
         tmp="$(mktemp)"
-        ${pkgs.gnused}/bin/sed "s|__CORP_CODEX_BASE_URL__|$CORP_CODEX_BASE_URL|g" \
-          "$configPath" > "$tmp"
+        # Explicit $CORP_* allowlist: unset refs stay literal (fails loudly at
+        # Codex startup rather than being silently blanked), and unrelated
+        # `$literals` in TOML values aren't touched.
+        corpVars=""
+        for v in ''${!CORP_*}; do corpVars="$corpVars \$$v"; done
+        ${pkgs.gettext}/bin/envsubst "$corpVars" < "$configPath" > "$tmp"
         $DRY_RUN_CMD install -m 0600 -T "$tmp" "$configPath"
       else
-        echo "warn: CORP_CODEX_BASE_URL unset or config.toml missing — base_url not patched" >&2
+        echo "warn: ~/.codex/config.toml missing — nothing to substitute" >&2
       fi
 
       if [ -n "''${CORP_CODEX_API_KEY:-}" ]; then
@@ -158,8 +163,7 @@ in
     '';
 
   # Corp marketplaces/plugins are appended to the ones declared in
-  # modules/home/development/claude-code.nix — home-manager merges list
-  # and attrset contributions from multiple modules automatically.
+  # modules/home/development/claude-code.nix
   programs.claude-code = {
     marketplaces = corpMarketplaces;
     plugins      = corpPlugins;

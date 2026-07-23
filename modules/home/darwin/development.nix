@@ -4,7 +4,9 @@
 #
 # Available options:
 # - home.apps.development.lazydocker.enable            - TUI for Docker; auto-on when
-#   shared.apps.development.docker or darwin.apps.development.orbstack is enabled
+#   shared.apps.development.docker / darwin.apps.development.orbstack /
+#   home.apps.development.podman is enabled. Podman's socket is exposed to
+#   Docker-API clients via DOCKER_HOST — set by the podman module.
 # - home.apps.development.xcbuild.enable               - xcrun shim, default true on darwin
 # - home.apps.development.androidStudio.telemetry.optOut - lock the IDE +
 #   SDK-tools telemetry files to opt-out; auto-on when
@@ -21,8 +23,9 @@ in
       type = lib.types.bool;
       default =
         (osConfig.shared.apps.development.docker.enable or false)
-        || (osConfig.darwin.apps.development.orbstack.enable or false);
-      description = "Install lazydocker. Auto-enables when docker/orbstack is on.";
+        || (osConfig.darwin.apps.development.orbstack.enable or false)
+        || (config.home.apps.development.podman.enable or false);
+      description = "Install lazydocker. Auto-enables when docker/orbstack/podman is on.";
     };
     xcbuild.enable = lib.mkOption {
       type = lib.types.bool;
