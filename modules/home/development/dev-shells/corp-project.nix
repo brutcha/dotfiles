@@ -47,6 +47,7 @@ let
       ".env"
       ".env.local"
       ".envrc"
+      ".emdash.json"
       ".claude/.custom/**"
       ".claude/.custom-autoload/**"
     ];
