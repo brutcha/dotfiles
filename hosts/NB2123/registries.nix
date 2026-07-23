@@ -13,10 +13,12 @@ in
   '';
 
   # .yarnrc.yml is written at activation time so the PAT never enters /nix/store.
+  # Uses the narrow-scope `corp/azure-devops-npmrc` token (Packaging: Read only)
+  # instead of the general PAT — leaked yarnrc can't read repo code.
   home.activation.yarnrcWithPat =
     lib.hm.dag.entryAfter [ "keepassSecretsExtract" ] ''
-      if [ -z "''${CORP_AZURE_DEVOPS_PAT:-}" ]; then
-        echo "warn: CORP_AZURE_DEVOPS_PAT unset — .yarnrc.yml not written" >&2
+      if [ -z "''${CORP_AZURE_DEVOPS_NPMRC:-}" ]; then
+        echo "warn: CORP_AZURE_DEVOPS_NPMRC unset — .yarnrc.yml not written" >&2
       else
       yarnrc="$HOME/.yarnrc.yml"
       tmp="$(mktemp)"
@@ -26,7 +28,7 @@ in
       npmRegistries:
         ${registryUrl}:
           npmAlwaysAuth: true
-          npmAuthIdent: "${private.projects.npaApp.adoOrganization}:$CORP_AZURE_DEVOPS_PAT"
+          npmAuthIdent: "${private.projects.npaApp.adoOrganization}:$CORP_AZURE_DEVOPS_NPMRC"
 
       npmScopes:
         ${private.projects.npaApp.registryScope}:

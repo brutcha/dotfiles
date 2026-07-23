@@ -31,7 +31,9 @@ Symlink the corp KDBX at `~/.config/dotfiles/vault.kdbx` (typical: OneDrive-sync
 |---|---|---|
 | `corp/anthropic-jwt` | Password | Corp Anthropic-gateway JWT |
 | `corp/anthropic-base-url` | Password | Gateway URL (e.g. `https://proxy.corp/v1/claude`) |
-| `corp/azure-devops-pat` | Password | Azure DevOps Artifacts PAT |
+| `corp/azure-devops-mcp` | Password | Azure DevOps PAT (general/MCP scope) |
+| `corp/azure-devops-npmrc` | Password | Azure DevOps Artifacts PAT (Packaging Read only) |
+| `corp/azure-devops-release-token` | Password | Azure DevOps release-deploy PAT |
 | `corp/codex-api-key` | Password | Personal WSO2 apiKey for the Codex proxy |
 | `corp/codex-base-url` | Password | Codex proxy URL (e.g. `https://proxy.corp/v1/codex`) |
 | `corp/ca-bundle` | Attachment `ca.pem` | Corp internal CA in PEM format |
@@ -41,7 +43,9 @@ DB=~/.config/dotfiles/vault.kdbx
 keepassxc-cli mkdir "$DB" corp
 keepassxc-cli add -p "$DB" corp/anthropic-jwt
 keepassxc-cli add -p "$DB" corp/anthropic-base-url
-keepassxc-cli add -p "$DB" corp/azure-devops-pat
+keepassxc-cli add -p "$DB" corp/azure-devops-mcp
+keepassxc-cli add -p "$DB" corp/azure-devops-npmrc
+keepassxc-cli add -p "$DB" corp/azure-devops-release-token
 keepassxc-cli add -p "$DB" corp/codex-api-key
 keepassxc-cli add -p "$DB" corp/codex-base-url
 keepassxc-cli add "$DB" corp/ca-bundle
@@ -73,9 +77,9 @@ Two activations do the work:
 
 - `cert-bundle.nix` (system) — extracts `corp/ca-bundle` via `launchctl asuser + sudo -u du234 keepassxc-cli`, merges with `/etc/ssl/cert.pem` into `/etc/nix/cert-bundle.pem`.
 - `hosts/NB2123/home.nix` (user, home-manager) — extracts the env-var secrets and applies them:
-  - Claude: injects `corp/anthropic-jwt` + `corp/anthropic-base-url` into `~/.claude/settings.json`.
+  - Claude: injects `corp/anthropic-jwt` + `corp/anthropic-base-url` into `~/.claude/settings.json`. Each managed project's `<projectHome>/claude/settings.json` snapshot inherits these via the dev-shells activation.
   - Codex: substitutes `__CORP_CODEX_BASE_URL__` in `~/.codex/config.toml` from `corp/codex-base-url` and runs `codex login --with-api-key` with `corp/codex-api-key` (fingerprint-gated — only re-runs on key rotation). Per-project `<projectHome>/codex/config.toml` files are produced by the dev-shells activation with the same substitution; per-project `auth.json` is symlinked back to `~/.codex/auth.json`.
-  - Azure DevOps: writes `corp/azure-devops-pat` into `~/.yarnrc.yml`.
+  - Azure DevOps: writes `corp/azure-devops-npmrc` (narrow Packaging-Read token) into `~/.yarnrc.yml`; `corp/azure-devops-mcp` is consumed by the per-project `azure-devops` MCP (see `dev-shells/corp-project.nix`), `corp/azure-devops-release-token` by the release-deploy env in `private.nix`.
 
 All fetch the master password from Keychain (`security find-generic-password -a du234 -s kdbx-master`), so no interactive prompts.
 

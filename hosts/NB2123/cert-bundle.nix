@@ -8,10 +8,10 @@
 let
   keepassxcCli = pkgs.keepassxc.passthru.cli;
 
+  user = config.system.primaryUser;
+  uid = "$(id -u ${user})";
+
   # Runs as the primary user, in that user's launchd/keychain session context.
-  # Args: <user> <vault-path> <output-path>
-  # Keychain path passed explicitly because HOME is inherited from the root
-  # activate script (~root), which makes `security` search the wrong keychain.
   extractCa = pkgs.writeShellScript "extract-corp-ca" ''
     set -e
     user="$1"
@@ -24,16 +24,15 @@ let
 in
 {
   system.activationScripts.extraActivation.text = ''
-    user="${config.system.primaryUser}"
-    vault="/Users/$user/.config/dotfiles/vault.kdbx"
+    vault="/Users/${user}/.config/dotfiles/vault.kdbx"
     tmp="$(mktemp)"
-    chown "$user" "$tmp"
+    chown "${user}" "$tmp"
     chmod 0600 "$tmp"
 
     if [ ! -f "$vault" ]; then
       echo "warn: $vault missing — /etc/nix/cert-bundle.pem not updated" >&2
-    elif launchctl asuser "$(id -u "$user")" sudo -u "$user" \
-           ${extractCa} "$user" "$vault" "$tmp" >/dev/null 2>&1; then
+    elif launchctl asuser "${uid}" sudo -u "${user}" \
+           ${extractCa} "${user}" "$vault" "$tmp" >/dev/null 2>&1; then
       mkdir -p /etc/nix
       cat /etc/ssl/cert.pem "$tmp" > /etc/nix/cert-bundle.pem
       chmod 0644 /etc/nix/cert-bundle.pem
@@ -43,6 +42,26 @@ in
     fi
 
     rm -f "$tmp"
+  '';
+
+  # Runs after user (home-manager) activation, so the podman package is
+  # available. Injects the corp CA into the podman machine VM's trust store.
+  # Every branch logs so a skipped inject is diagnosable — otherwise a fresh
+  # setup (VM not yet started on first login) looks identical to a success.
+  system.activationScripts.postActivation.text = ''
+    if [ ! -f /etc/nix/cert-bundle.pem ]; then
+      echo "note: /etc/nix/cert-bundle.pem missing — skipping podman VM CA-inject" >&2
+    elif ! launchctl asuser "${uid}" sudo -Hu "${user}" \
+           ${pkgs.podman}/bin/podman machine ssh true >/dev/null 2>&1; then
+      echo "note: podman machine not reachable — skipping VM CA-inject (re-runs on next darwin-rebuild once VM is up)" >&2
+    elif launchctl asuser "${uid}" sudo -Hu "${user}" \
+           ${pkgs.podman}/bin/podman machine ssh \
+             'sudo tee /etc/pki/ca-trust/source/anchors/corp-ca.crt >/dev/null && sudo update-ca-trust' \
+           < /etc/nix/cert-bundle.pem >/dev/null 2>&1; then
+      echo "corp CA: injected into podman machine VM" >&2
+    else
+      echo "warn: podman machine ssh CA-inject failed" >&2
+    fi
   '';
 
   nix.settings = {

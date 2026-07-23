@@ -43,14 +43,24 @@ let
         default = { };
         description = "Extra env vars for stdio transport.";
       };
+      authorization_env_var = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = ''
+          Env var whose value is sent as the Authorization header verbatim
+          (e.g. "Bearer xyz" or "Basic <base64(user:pass)>"). Only valid for
+          http transport. Written to config.toml as
+          `http_headers.Authorization = "$<env var name>"` and then expanded
+          to a literal value at activation time by envsubst (see
+          hosts/NB2123/home.nix and modules/home/development/dev-shells/
+          corp-project.nix). Codex has no runtime env-var indirection for
+          headers, so the secret is baked into the on-disk 0600 config.toml.
+        '';
+      };
     };
   });
 
-  # Discriminated submodule -> Codex TOML shape. Fields are read with `or`
-  # defaults so raw attrsets (e.g. project.mcpServers straight from private.nix)
-  # work alongside typed submodule inputs. Required per-type fields are checked
-  # explicitly so a bad entry surfaces as a clear config error instead of
-  # producing a TOML with `url = null` (which Codex would then reject at runtime).
+  # mcpServerType -> Codex TOML shape.
   #   http  -> { url = ...; }
   #   stdio -> { command = ...; args = [...]; env = { ... }; }  (env dropped when empty)
   toTomlServer = name: s:
@@ -61,7 +71,9 @@ let
         else value;
     in
     if s.type or null == "http" then
-      { url = require "url" (s.url or null); }
+      { url = require "url" (s.url or null); } //
+        lib.optionalAttrs ((s.authorization_env_var or null) != null)
+          { http_headers.Authorization = "$" + s.authorization_env_var; }
     else if s.type or null == "stdio" then
       { command = require "command" (s.command or null); args = s.args or [ ]; } //
         lib.optionalAttrs ((s.env or { }) != { }) { env = s.env; }
