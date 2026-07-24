@@ -97,6 +97,13 @@
   system.defaults.CustomUserPreferences.NSGlobalDomain = {
     AppleMiniaturizeOnDoubleClick = false;
     "com.apple.scrollwheel.scaling" = 2.0;
+    # Disable mouse acceleration; keep a modest fixed tracking speed.
+    "com.apple.mouse.linear" = 1;
+    "com.apple.mouse.scaling" = 0.875;
+    # F1–F12 behave as function keys (fn+key for media/brightness).
+    "com.apple.keyboard.fnState" = 1;
+    # Follow system-scheduled appearance (auto light/dark).
+    AppleInterfaceStyleSwitchesAutomatically = 1;
   };
 
   # No .DS_Store on network shares or USB volumes.
