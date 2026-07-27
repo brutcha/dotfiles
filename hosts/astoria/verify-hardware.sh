@@ -29,17 +29,27 @@ else
 fi
 
 section "Platform profile (TLP PLATFORM_PROFILE_ON_BAT)"
-# If choices is empty/missing, PLATFORM_PROFILE_ON_BAT in TLP is a silent no-op.
-if [ -r /sys/firmware/acpi/platform_profile_choices ]; then
-  printf '  choices: %s\n' "$(cat /sys/firmware/acpi/platform_profile_choices)"
+# The file may exist and be readable but empty on SKUs that expose the ACPI
+# node without any profiles — treat empty as unsupported (silent no-op for TLP).
+pp_choices=$(cat /sys/firmware/acpi/platform_profile_choices 2>/dev/null)
+if [ -n "$pp_choices" ]; then
+  printf '  choices: %s\n' "$pp_choices"
   printf '  active:  %s\n' "$(cat /sys/firmware/acpi/platform_profile 2>/dev/null || echo unknown)"
 else
   echo '  not supported on this SKU — PLATFORM_PROFILE_ON_BAT will be a silent no-op'
   echo '  -> OK to remove that TLP setting from hardware.nix (tidy)'
 fi
+unset pp_choices
 
 section "Fingerprint reader"
-lsusb 2>/dev/null | grep -i '27c6' | sed 's/^/  /' || echo '  no Goodix device found'
+# grep's exit status must drive the fallback, not sed's (sed returns 0 on
+# empty input). Buffer the grep output first so we can test it directly.
+if goodix=$(lsusb 2>/dev/null | grep -i '27c6') && [ -n "$goodix" ]; then
+  printf '%s\n' "$goodix" | sed 's/^/  /'
+else
+  echo '  no Goodix device found'
+fi
+unset goodix
 
 section "BIOS version"
 if command -v fwupdmgr >/dev/null 2>&1; then
@@ -52,14 +62,30 @@ section "GPU / VA-API"
 lspci -nnk 2>/dev/null | grep -A2 VGA | sed 's/^/  /'
 
 section "Battery health (approximate)"
+# Guard the divisions: sysfs can return 0 or blank on uncalibrated / hot-swap /
+# corrupt states, and `$((… / 0))` aborts the script under `set -u`. Read both
+# counters, verify they're positive integers, then compute.
+report_health() {
+  # $1 = human label ("charge_full" | "energy_full")
+  # $2 = current, $3 = design.
+  # `[ "$X" -ge 0 ]` errors (silently, via stderr redirect) on non-numeric or
+  # empty input → `if` branch not taken → we fall to the "skipped" printf.
+  # Both operands need this guard: `$((… / 0))` and `$(( / … ))` both abort
+  # the arithmetic under `set -u`.
+  if [ "$2" -ge 0 ] 2>/dev/null && [ "$3" -gt 0 ] 2>/dev/null; then
+    printf '  BAT0 %s=%s design=%s (health ~%d%%)\n' "$1" "$2" "$3" "$((100 * $2 / $3))"
+  else
+    printf '  BAT0 %s=%s design=%s (health: skipped — counter invalid or design zero)\n' "$1" "$2" "$3"
+  fi
+}
 if [ -r /sys/class/power_supply/BAT0/charge_full ] && [ -r /sys/class/power_supply/BAT0/charge_full_design ]; then
-  now=$(cat /sys/class/power_supply/BAT0/charge_full)
-  design=$(cat /sys/class/power_supply/BAT0/charge_full_design)
-  printf '  BAT0 charge_full=%s design=%s (health ~%d%%)\n' "$now" "$design" "$((100 * now / design))"
+  report_health charge_full \
+    "$(cat /sys/class/power_supply/BAT0/charge_full)" \
+    "$(cat /sys/class/power_supply/BAT0/charge_full_design)"
 elif [ -r /sys/class/power_supply/BAT0/energy_full ] && [ -r /sys/class/power_supply/BAT0/energy_full_design ]; then
-  now=$(cat /sys/class/power_supply/BAT0/energy_full)
-  design=$(cat /sys/class/power_supply/BAT0/energy_full_design)
-  printf '  BAT0 energy_full=%s design=%s (health ~%d%%)\n' "$now" "$design" "$((100 * now / design))"
+  report_health energy_full \
+    "$(cat /sys/class/power_supply/BAT0/energy_full)" \
+    "$(cat /sys/class/power_supply/BAT0/energy_full_design)"
 else
   echo '  BAT0 counters not readable'
 fi

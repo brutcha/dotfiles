@@ -3,8 +3,10 @@
 Sofa/bed/bath companion to a TV-connected Nobara desktop. Sway, Moonlight,
 LibreWolf. TV inputs via AV receiver → single-scene Sunshine on the host.
 
-**Design plan**: `/Users/du234/.claude/plans/i-am-planning-to-fancy-lollipop.md`
-— rationale, alternatives considered, threat model. This file is the runbook.
+Design rationale (why Lanzaboote, why TPM-sealed cryptswap, why sops-nix over a
+private flake, threat model) lives in the author's working notes outside the
+repo. In-file: each module's header comment carries the "why" for its own
+choices; this file is the operator's runbook.
 
 ---
 
@@ -25,9 +27,11 @@ LibreWolf. TV inputs via AV receiver → single-scene Sunshine on the host.
       ```
       nix-shell -p rclone --run 'rclone obscure APP_PASSWORD'
       ```
-- [ ] **WebDAV endpoint sanity check** — auth works, directory lists:
+- [ ] **WebDAV endpoint sanity check** — auth works, directory lists.
+      `-u USER` (no colon) makes curl prompt for the password on tty rather
+      than leaving it in argv / scrollback / `ps`:
       ```
-      curl -X PROPFIND -H 'Depth: 0' -u USER:APP_PASSWORD https://WEBDAV_HOST/WEBDAV_ROOT/
+      curl -X PROPFIND -H 'Depth: 0' -u USER https://WEBDAV_HOST/WEBDAV_ROOT/
       ```
       Success = `<d:multistatus>…</d:multistatus>` XML.
 
@@ -187,11 +191,19 @@ trap 'shred -u -- /tmp/astoria_host_key* /tmp/recovery.txt /tmp/astoria-hash 2>/
       nmcli device wifi connect <ssid> password <psk>
       ```
 - [ ] **Hardware inventory** — adjust `hardware.nix` if output contradicts
-      the AX201 / Ice Lake assumptions:
+      the AX201 / Ice Lake assumptions. Fetch to a file first (never pipe a
+      raw HTTP response straight into `sh` — a compromised repo tag or an
+      MITM'd CDN response would execute unreviewed), inspect if you like,
+      then run the local copy:
       ```
       USER_GH=<your-github-username>
-      curl -sL "https://raw.githubusercontent.com/${USER_GH}/dotfiles/main/hosts/astoria/verify-hardware.sh" | sh
+      curl -sLo /tmp/verify-hardware.sh "https://raw.githubusercontent.com/${USER_GH}/dotfiles/main/hosts/astoria/verify-hardware.sh"
+      less /tmp/verify-hardware.sh      # optional inspection
+      sh /tmp/verify-hardware.sh
       ```
+      Alternatively, if you already cloned the flake in Phase 3 step 1
+      (see below), just run `sh /tmp/dotfiles/hosts/astoria/verify-hardware.sh`
+      from that git-verified copy.
 
 ---
 
