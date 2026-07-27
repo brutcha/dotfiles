@@ -87,7 +87,7 @@ trap 'shred -u -- /tmp/astoria_host_key* /tmp/recovery.txt /tmp/astoria-hash 2>/
    - Pubkey line → replace `age1astoriahostPUBKEY_TBD` in `.sops.yaml`.
    - Private key → vault entry `"astoria SSH host key"`. If your vault's
      Password field rejects multi-line PEM, base64 it to a single line first
-     (decoded back during Phase 3 step 3):
+     (decoded back during Phase 3 step 4):
      ```
      base64 -i /tmp/astoria_host_key | tr -d '\n' | pbcopy          # macOS
      base64    /tmp/astoria_host_key | tr -d '\n' | xclip -sel c    # Linux (X11)
@@ -190,20 +190,6 @@ trap 'shred -u -- /tmp/astoria_host_key* /tmp/recovery.txt /tmp/astoria-hash 2>/
       ```
       nmcli device wifi connect <ssid> password <psk>
       ```
-- [ ] **Hardware inventory** — adjust `hardware.nix` if output contradicts
-      the AX201 / Ice Lake assumptions. Fetch to a file first (never pipe a
-      raw HTTP response straight into `sh` — a compromised repo tag or an
-      MITM'd CDN response would execute unreviewed), inspect if you like,
-      then run the local copy:
-      ```
-      USER_GH=<your-github-username>
-      curl -sLo /tmp/verify-hardware.sh "https://raw.githubusercontent.com/${USER_GH}/dotfiles/main/hosts/astoria/verify-hardware.sh"
-      less /tmp/verify-hardware.sh      # optional inspection
-      sh /tmp/verify-hardware.sh
-      ```
-      Alternatively, if you already cloned the flake in Phase 3 step 1
-      (see below), just run `sh /tmp/dotfiles/hosts/astoria/verify-hardware.sh`
-      from that git-verified copy.
 
 ---
 
@@ -222,7 +208,23 @@ git clone "https://github.com/${GITHUB_USER}/dotfiles" /tmp/dotfiles
 cd /tmp/dotfiles
 ```
 
-### 2. Partition + format
+### 2. Hardware inventory
+
+Run the verify script from the just-cloned (git-verified) copy — never
+pipe a raw HTTP response into `sh`; a compromised repo tag or an MITM'd
+CDN response would execute unreviewed. `hardware.nix` assumes AX201 /
+Ice Lake; adjust it if the output disagrees BEFORE the install step.
+
+```
+sh hosts/astoria/verify-hardware.sh
+```
+
+If it flags a QCA6390 Wi-Fi chip, unavailable `platform_profile`,
+non-`s2idle` sleep mode, etc., edit `hosts/astoria/hardware.nix` now
+(see the in-file comments for the alternate values) — the install
+step below picks up the changes.
+
+### 3. Partition + format
 
 ```
 sudo nix run 'github:nix-community/disko' \
@@ -242,7 +244,7 @@ Prompts, in order:
 2. **cryptswap** LUKS passphrase (2×) — from vault `"astoria cryptswap"`.
 3. **cryptroot** LUKS passphrase (2×) — from vault `"astoria login"`.
 
-### 3. Transfer astoria's SSH host key from dev → installer
+### 4. Transfer astoria's SSH host key from dev → installer
 
 On the installer, set a throwaway login password (the `nixos` user starts
 empty, which blocks ssh):
@@ -280,7 +282,7 @@ sudo ssh-keygen -y -f /mnt/etc/ssh/ssh_host_ed25519_key | \
   sudo install -m 644 -o root -g root /dev/stdin /mnt/etc/ssh/ssh_host_ed25519_key.pub
 ```
 
-### 4. Generate sbctl Secure Boot keys
+### 5. Generate sbctl Secure Boot keys
 
 `nixos-install` signs the bootloader via Lanzaboote's installHook using these
 keys, so they must exist at `/mnt/var/lib/sbctl` before install.
@@ -296,7 +298,7 @@ Gotchas:
   not a directory. Passing a directory → EISDIR → no keys ever created.
 - Older sbctl uses `--keydir` / `--pki-dir` instead. Check `--help` first.
 
-### 5. Install
+### 6. Install
 
 ```
 sudo nixos-install --flake /tmp/dotfiles#astoria --no-root-passwd
@@ -310,7 +312,7 @@ During activation:
 - cryptswap TPM keyslot doesn't exist yet — first boot prompts for the
   disko-set passphrase. TPM enrollment happens in Phase 4c.
 
-### 6. Reboot
+### 7. Reboot
 
 cryptroot passphrase → cryptswap passphrase (once, until Phase 4c) → greetd
 → user login → Sway.
@@ -335,7 +337,7 @@ cryptroot passphrase → cryptswap passphrase (once, until Phase 4c) → greetd
 - [ ] `systemctl status sops-install-secrets` — active, exit 0.
 - [ ] `ls /run/secrets-for-users/users/brutcha/` — hashed-password present.
 - [ ] `ls /run/secrets/{restic,rclone}/` — secrets present.
-- [ ] `lspci -k` — Wi-Fi chip matches Phase 2 hw-inventory.
+- [ ] `lspci -k` — Wi-Fi chip matches Phase 3 hw-inventory output.
 - [ ] `cat /sys/power/mem_sleep` — `[s2idle]` bracketed.
 - [ ] **Git-clone the flake** to `/home/brutcha/git/dotfiles` — otherwise
       `environment.etc.nixos.source` is a dangling symlink and later
