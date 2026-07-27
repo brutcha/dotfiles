@@ -35,7 +35,7 @@ in
   home.stateVersion = "25.05";
 
   imports = [
-    ../../modules/home/darwin     # darwin bundle (imports shared + darwin-only extras)
+    ../../modules/home
     ./registries.nix              # NB2123-only npm/yarn corp registries
   ];
 

@@ -48,6 +48,41 @@
       url = "github:amaanq/helium-flake";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    # --- NixOS-only inputs (used by astoria) ---
+
+    # nixos-hardware — per-model hardware quirks (Dell XPS 13 9300)
+    # https://github.com/NixOS/nixos-hardware
+    nixos-hardware.url = "github:NixOS/nixos-hardware/master";
+
+    # disko — declarative disk partitioning (LUKS containers, Btrfs subvolumes)
+    # https://github.com/nix-community/disko
+    disko = {
+      url = "github:nix-community/disko";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # sops-nix — activation-time secrets, encrypted-in-repo
+    # https://github.com/Mic92/sops-nix
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # NUR — Nix User Repository, for rycee.firefox-addons (enhanced-h264ify,
+    # nextcloud-passwords). https://github.com/nix-community/NUR
+    nur.url = "github:nix-community/NUR";
+
+    # Lanzaboote — signed systemd-boot replacement (Secure Boot chain). Pinned
+    # to the release tag rather than main because it's a boot-chain-critical
+    # dependency and unpinned bumps can brick unattended updates. v1.1.0
+    # (released 2026-06-22) is the first tag compatible with post-2026-06-09
+    # nixpkgs where `boot.bootspec.enable` was removed.
+    # https://github.com/nix-community/lanzaboote
+    lanzaboote = {
+      url = "github:nix-community/lanzaboote/v1.1.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = inputs@{ self, nix-darwin, home-manager, nix-homebrew, nixpkgs, ... }:
@@ -65,7 +100,7 @@
         # Flake-only setup — drop the legacy channels path from NIX_PATH
         # (silences "Nix search path entry .../channels does not exist").
         nix.channel.enable = false;
-        
+
         # Allow unfree packages
         nixpkgs.config.allowUnfree = true;
 
@@ -100,10 +135,10 @@
       # into the project's own .gitignore. See dev-shells/default.nix for
       # the full mechanism, inheritance rules, and future privacy options.
 
-      # Helper function to create home-manager configuration for a user
+      # Helper function to create home-manager configuration for a user (darwin)
       # Creates a module list that integrates home-manager with the system configuration
       # and imports user-specific settings from hosts/${hostname}/home.nix
-      mkHomeConfig = { username, hostname, home, private ? null }: [
+      mkHomeConfig = { username, hostname, home, system, private ? null }: [
         home-manager.darwinModules.home-manager
         {
           # Set the user's home directory path
@@ -114,8 +149,16 @@
           # Install user packages to /etc/profiles instead of ~/.nix-profile.
           # `private` is always present (null on hosts without one) so modules
           # can pattern-match on it without triggering _module.args recursion.
+          #
+          # `hostSystem` is the Nix system string ("aarch64-darwin",
+          # "x86_64-linux", ...). Threaded via specialArgs so modules/home
+          # can decide platform sub-bundle imports (see modules/home/default.nix)
+          # without depending on `pkgs.stdenv.hostPlatform.*` at import-list
+          # eval time — that route hits `_module.args`->`config` recursion
+          # because pkgs isn't externally provided to HM's inner modules.
           home-manager.extraSpecialArgs = {
             inherit inputs private;
+            hostSystem = system;
             rootDir = self;
             utils = utils;
           };
@@ -200,7 +243,7 @@
             configuration
             ./hosts/${hostname}/default.nix
           ] ++ mkHomeConfig {
-            inherit username hostname private;
+            inherit username hostname private system;
             home = "/Users/${username}";
           } ++ mkHomebrewConfig {
             inherit username;
@@ -246,14 +289,54 @@
             configuration
             ./hosts/${hostname}/default.nix
           ] ++ mkHomeConfig {
-            inherit username hostname private;
+            inherit username hostname private system;
             home = "/Users/${username}";
           } ++ mkHomebrewConfig {
             inherit username;
             autoMigrate = true;
           };
         };
+
+      # NixOS system configuration for astoria (Dell XPS 13 9300 thin-client)
+      #
+      # `inputs` MUST be threaded into BOTH system specialArgs (for
+      # hosts/astoria/{default,hardware}.nix which pattern-match `{ inputs, ... }:`)
+      # AND `home-manager.extraSpecialArgs` (for shared HM modules like
+      # modules/home/development/dev-shells/default.nix and claude-code.nix which
+      # also eagerly destructure `{ inputs, ... }:`). System specialArgs do NOT
+      # propagate into HM's module scope — the second wiring below is not
+      # optional; without it HM eval fails "attribute 'inputs' missing" at
+      # pattern-match, before any lib.mkIf gate can fire.
+      #
+      # `private = null` is safe: the modules that consume it all use `private ?
+      # null` at pattern-match. Passing null explicitly keeps parity with the
+      # darwin wiring pattern so any future extraction/dedup stays trivial.
+      nixosConfigurations.astoria =
+        let
+          system = "x86_64-linux";
+          private = null;
+          rootDir = self;
+        in
+        nixpkgs.lib.nixosSystem {
+          inherit system;
+          # NOTE: `utils` intentionally NOT in system specialArgs — NixOS's
+          # module framework injects its own `utils` (which carries
+          # `systemdUtils` used by nixos/modules/system/boot/systemd.nix); a
+          # user-supplied `utils` would shadow it and break systemd module
+          # eval with "undefined variable 'systemdUtils'". The custom `utils`
+          # from modules/lib/default.nix is still available to HM modules via
+          # extraSpecialArgs below (HM has no such internal `utils`).
+          specialArgs = { inherit inputs rootDir private; };
+          modules = [
+            configuration
+            ./hosts/astoria/default.nix
+            {
+              home-manager.extraSpecialArgs = {
+                inherit inputs private rootDir utils;
+                hostSystem = system;
+              };
+            }
+          ];
+        };
     };
 }
-
-
