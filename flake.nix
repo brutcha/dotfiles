@@ -212,6 +212,12 @@
       ];
     in
     {
+      # Re-export disko's CLI at the flake's own package output so the
+      # astoria README can invoke it as `sudo nix run '.#disko' -- ...`
+      # from the cloned repo — that hits our lock-pinned commit rather
+      # than `github:nix-community/disko` HEAD.
+      packages.x86_64-linux.disko = inputs.disko.packages.x86_64-linux.disko;
+
       # macOS system configuration for makima (personal MacBook)
       darwinConfigurations.makima =
         let

@@ -23,9 +23,11 @@ choices; this file is the operator's runbook.
       (Devices/Sessions/Tokens section, label `"astoria-restic"`). DO NOT
       reuse the main account password.
 - [ ] **rclone-obscure the app-password** for use in rclone.conf (Phase 1
-      step 7):
+      step 7). Passing the password as an argv positional would leak it to
+      `ps` and shell history; `read -rs` prompts on tty and never puts the
+      value in argv:
       ```bash
-      nix-shell -p rclone --run 'rclone obscure APP_PASSWORD'
+      nix-shell -p rclone --run 'IFS= read -rsp "app-password: " pw; echo; rclone obscure "$pw"; unset pw'
       ```
 - [ ] **WebDAV endpoint sanity check** — auth works, directory lists.
       `-u USER` (no colon) makes curl prompt for the password on tty rather
@@ -123,9 +125,11 @@ trap 'shred -u -- /tmp/astoria_host_key* /tmp/recovery.txt /tmp/astoria-hash 2>/
    openssl rand -base64 48
    ```
 
-6. **User password hash** — via temp file to keep the hash off scrollback:
+6. **User password hash** — via temp file to keep the hash off scrollback.
+   The subshell-scoped `umask 077` forces the redirected file to be created
+   as 0600 in a single syscall (no umask-races, no leak into the outer shell):
    ```bash
-   mkpasswd -m yescrypt > /tmp/astoria-hash
+   ( umask 077 && mkpasswd -m yescrypt > /tmp/astoria-hash )
    ```
    Enter the login passphrase from step 4 at the prompt.
 
@@ -227,12 +231,17 @@ step below picks up the changes.
 ### 3. Partition + format
 
 ```bash
-sudo nix run 'github:nix-community/disko' \
+sudo nix run '.#disko' \
   --extra-experimental-features 'nix-command flakes' \
   -- --mode destroy,format,mount --flake .#astoria
 ```
 
-Why the flags: `sudo` because disko doesn't self-elevate; the
+`.#disko` (rather than `github:nix-community/disko`) resolves the disko
+binary through the flake's own `packages.x86_64-linux.disko` re-export,
+which is pinned via `flake.lock` — no unpinned github ref, no MITM-able
+fetch, exact same code as everything else the flake produces.
+
+Why the other flags: `sudo` because disko doesn't self-elevate; the
 `--extra-experimental-features` inline because NixOS sudo drops `NIX_CONFIG`
 env, so `export NIX_CONFIG=…` in the outer shell wouldn't survive.
 
