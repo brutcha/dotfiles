@@ -28,15 +28,21 @@ in
     # the new profile's PATH isn't always live, so `command -v rtk` can
     # spuriously return false even when installPackages has just put it in
     # the store.
+    # Function + `|| true` so rtk failure doesn't abort downstream
+    # activations (set -e is on).
     home.activation.rtkInit =
       lib.hm.dag.entryAfter [ "claudeCodeSettings" "installPackages" ] ''
-        if out="$($DRY_RUN_CMD ${pkgs.rtk}/bin/rtk init -g --auto-patch 2>&1)"; then
-          echo "rtk hook: registered" >&2
-        else
-          echo "rtk hook: registration failed" >&2
-          echo "$out" >&2
-          exit 1
-        fi
+        _rtk_init() {
+          local out
+          if out="$($DRY_RUN_CMD ${pkgs.rtk}/bin/rtk init -g --auto-patch 2>&1)"; then
+            echo "rtk hook: registered" >&2
+          else
+            echo "warn: rtk hook registration failed — downstream activations will still run" >&2
+            printf '  %s\n' "$out" >&2
+            return 1
+          fi
+        }
+        _rtk_init || true
       '';
   };
 }

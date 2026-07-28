@@ -31,6 +31,11 @@ in
       registryScope = "myorg"; # npm scope prefix (@myorg/...)
       packages = [ "nodejs_22" "corepack_22" "python3" "gnumake" "azure-cli" ];
 
+      # Optional. Runs once at worktree creation via emdash's scripts.setup,
+      # after `cp .emdash.json` (which is always prefixed for you). Default:
+      # `direnv allow . && direnv exec . yarn install --frozen-lockfile`.
+      scriptsSetup = "direnv allow . && direnv exec . yarn install --frozen-lockfile && direnv exec . yarn my-post-install-script";
+
       env = {
         NODE_EXTRA_CA_CERTS = corpCaBundle;
         SSL_CERT_FILE = corpCaBundle;
