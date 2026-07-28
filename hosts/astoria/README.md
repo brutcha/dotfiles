@@ -24,13 +24,13 @@ choices; this file is the operator's runbook.
       reuse the main account password.
 - [ ] **rclone-obscure the app-password** for use in rclone.conf (Phase 1
       step 7):
-      ```
+      ```bash
       nix-shell -p rclone --run 'rclone obscure APP_PASSWORD'
       ```
 - [ ] **WebDAV endpoint sanity check** — auth works, directory lists.
       `-u USER` (no colon) makes curl prompt for the password on tty rather
       than leaving it in argv / scrollback / `ps`:
-      ```
+      ```bash
       curl -X PROPFIND -H 'Depth: 0' -u USER https://WEBDAV_HOST/WEBDAV_ROOT/
       ```
       Success = `<d:multistatus>…</d:multistatus>` XML.
@@ -80,7 +80,7 @@ trap 'shred -u -- /tmp/astoria_host_key* /tmp/recovery.txt /tmp/astoria-hash 2>/
 ### Steps
 
 1. **Astoria host SSH key**
-   ```
+   ```bash
    ssh-keygen -t ed25519 -f /tmp/astoria_host_key -N '' -C mail@brutcha.dev
    ssh-to-age -i /tmp/astoria_host_key.pub
    ```
@@ -88,14 +88,14 @@ trap 'shred -u -- /tmp/astoria_host_key* /tmp/recovery.txt /tmp/astoria-hash 2>/
    - Private key → vault entry `"astoria SSH host key"`. If your vault's
      Password field rejects multi-line PEM, base64 it to a single line first
      (decoded back during Phase 3 step 4):
-     ```
+     ```bash
      base64 -i /tmp/astoria_host_key | tr -d '\n' | pbcopy          # macOS
      base64    /tmp/astoria_host_key | tr -d '\n' | xclip -sel c    # Linux (X11)
      base64    /tmp/astoria_host_key | tr -d '\n' | wl-copy         # Linux (Wayland)
      ```
 
 2. **Recovery age keypair** (once, ever)
-   ```
+   ```bash
    age-keygen -o /tmp/recovery.txt
    ```
    - Pubkey → replace `age1recoveryPUBKEY_TBD` in `.sops.yaml`.
@@ -103,7 +103,7 @@ trap 'shred -u -- /tmp/astoria_host_key* /tmp/recovery.txt /tmp/astoria-hash 2>/
      (single-line, no base64 needed).
 
 3. **Export recovery key for sops**
-   ```
+   ```bash
    export SOPS_AGE_KEY_FILE=/tmp/recovery.txt
    ```
    Step 7 encrypts fresh (only needs pubkeys). Step 8 (`sops updatekeys`)
@@ -119,18 +119,18 @@ trap 'shred -u -- /tmp/astoria_host_key* /tmp/recovery.txt /tmp/astoria-hash 2>/
 
 5. **Restic repo password** → vault entry `"astoria restic repo"`. Strong
    random:
-   ```
+   ```bash
    openssl rand -base64 48
    ```
 
 6. **User password hash** — via temp file to keep the hash off scrollback:
-   ```
+   ```bash
    mkpasswd -m yescrypt > /tmp/astoria-hash
    ```
    Enter the login passphrase from step 4 at the prompt.
 
 7. **Populate secrets YAML**
-   ```
+   ```bash
    mkdir -p hosts/astoria/secrets     # sops uses os.WriteFile — no MkdirAll
    sops hosts/astoria/secrets/astoria.yaml
    ```
@@ -154,14 +154,14 @@ trap 'shred -u -- /tmp/astoria_host_key* /tmp/recovery.txt /tmp/astoria-hash 2>/
    `restic-backups-webdav.service` will fail on first boot.
 
 8. **Encrypt to both recipients**
-   ```
+   ```bash
    sops updatekeys hosts/astoria/secrets/astoria.yaml
    ```
 
 9. **Commit + push**.
 
 10. **Shred + clear scrollback**
-    ```
+    ```bash
     shred -u /tmp/astoria_host_key* /tmp/recovery.txt /tmp/astoria-hash
     printf '\033c'
     ```
@@ -187,7 +187,7 @@ trap 'shred -u -- /tmp/astoria_host_key* /tmp/recovery.txt /tmp/astoria-hash 2>/
 - [ ] **Boot NixOS 26.11 minimal installer USB** (nixos-unstable ISO OK
       while 26.11 is pre-release — flake pins nixpkgs to the same channel).
 - [ ] **Wi-Fi**:
-      ```
+      ```bash
       nmcli device wifi connect <ssid> password <psk>
       ```
 
@@ -195,14 +195,14 @@ trap 'shred -u -- /tmp/astoria_host_key* /tmp/recovery.txt /tmp/astoria-hash 2>/
 
 ## Phase 3 — install
 
-```
+```bash
 GITHUB_USER=<your-github-username>
 ASTORIA_IP=<astoria-lan-ip>       # from `ip addr | grep 'inet '` on the installer
 ```
 
 ### 1. Clone the flake
 
-```
+```bash
 nix-shell -p git
 git clone "https://github.com/${GITHUB_USER}/dotfiles" /tmp/dotfiles
 cd /tmp/dotfiles
@@ -215,7 +215,7 @@ pipe a raw HTTP response into `sh`; a compromised repo tag or an MITM'd
 CDN response would execute unreviewed. `hardware.nix` assumes AX201 /
 Ice Lake; adjust it if the output disagrees BEFORE the install step.
 
-```
+```bash
 sh hosts/astoria/verify-hardware.sh
 ```
 
@@ -226,7 +226,7 @@ step below picks up the changes.
 
 ### 3. Partition + format
 
-```
+```bash
 sudo nix run 'github:nix-community/disko' \
   --extra-experimental-features 'nix-command flakes' \
   -- --mode destroy,format,mount --flake .#astoria
@@ -248,7 +248,7 @@ Prompts, in order:
 
 On the installer, set a throwaway login password (the `nixos` user starts
 empty, which blocks ssh):
-```
+```bash
 sudo passwd nixos
 ```
 
@@ -257,7 +257,7 @@ into the installer over ssh. `sudo install` (below) atomically creates the
 target file with the right owner + 0600 mode — no umask window during which
 the file would be world-readable.
 
-```
+```bash
 # Option A — Linux dev (xclip):
 xclip -o -selection clipboard | base64 -d | ssh "nixos@${ASTORIA_IP}" \
   'sudo mkdir -p /mnt/etc/ssh && sudo install -m 600 -o root -g root /dev/stdin /mnt/etc/ssh/ssh_host_ed25519_key'
@@ -277,7 +277,7 @@ paste the PEM directly.
 
 On the installer, derive the .pub (strict openssh refuses to read a 0644
 private key without a matching .pub):
-```
+```bash
 sudo ssh-keygen -y -f /mnt/etc/ssh/ssh_host_ed25519_key | \
   sudo install -m 644 -o root -g root /dev/stdin /mnt/etc/ssh/ssh_host_ed25519_key.pub
 ```
@@ -287,7 +287,7 @@ sudo ssh-keygen -y -f /mnt/etc/ssh/ssh_host_ed25519_key | \
 `nixos-install` signs the bootloader via Lanzaboote's installHook using these
 keys, so they must exist at `/mnt/var/lib/sbctl` before install.
 
-```
+```bash
 sudo nix-shell -p sbctl --run 'sbctl create-keys --help'    # confirm flag names first
 sudo mkdir -p /mnt/var/lib/sbctl
 sudo nix-shell -p sbctl --run 'sbctl create-keys --export /mnt/var/lib/sbctl/keys --database-path /mnt/var/lib/sbctl/GUID'
@@ -300,7 +300,7 @@ Gotchas:
 
 ### 6. Install
 
-```
+```bash
 sudo nixos-install --flake /tmp/dotfiles#astoria --no-root-passwd
 ```
 
@@ -359,7 +359,7 @@ cryptroot passphrase → cryptswap passphrase (once, until Phase 4c) → greetd
 Enroll BEFORE turning SB on in BIOS — first SB-enabled boot must verify
 Lanzaboote against enrolled keys.
 
-```
+```bash
 sudo sbctl status                      # Setup Mode: Enabled, Secure Boot: Disabled
 sudo sbctl enroll-keys --microsoft     # --microsoft: append MS certs to KEK+db (option ROMs)
 sudo sbctl verify                      # every file: ✓ Signed
@@ -369,14 +369,14 @@ Reboot → BIOS → enable Secure Boot → save. Boots normally, still prompts f
 both cryptroot + cryptswap passphrases (TPM not enrolled yet).
 
 Verify from the running system:
-```
+```bash
 bootctl status | grep 'Secure Boot'    # enabled
 sudo sbctl verify
 ```
 
 ### 4c. Enroll TPM keyslot for cryptswap
 
-```
+```bash
 ls /sys/class/tpm/                     # tpm0 should be there
 sudo systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=0+2+7 /dev/nvme0n1p2
 ```
@@ -391,16 +391,16 @@ via TPM (no prompt).
 **Recovery if enrollment failed mid-step** (tpm2-tss error, DA-lockout, PCR
 read error): the passphrase keyslot is UNAFFECTED — cryptswap still opens
 via passphrase. Clean up with:
-```
+```bash
 sudo systemd-cryptenroll --wipe-slot=tpm2 /dev/nvme0n1p2     # non-fatal if no slot
 ```
 Then retry the enroll command. If DA-locked:
-```
+```bash
 sudo tpm2_dictionarylockout --clear-lockout                  # blank owner pw on freshly-cleared TPM
 ```
 
 Verify keyslots:
-```
+```bash
 sudo systemd-cryptenroll /dev/nvme0n1p2                      # slot 0 (password) + slot N (tpm2)
 ```
 
@@ -438,7 +438,7 @@ something:
 **Snapper rootfs rollback** — for reverting non-`/nix/store` drift (files edited
 outside the flake, corrupted state under `/etc`, `/var`, `/home`). Snapshots live
 under `/.snapshots/<N>/snapshot` and are created at every boot by `snapper-boot.service`:
-```
+```bash
 sudo snapper -c root list                           # inspect snapshots + timestamps
 sudo snapper -c root diff <N>..<M>                  # peek at what would change
 sudo snapper -c root undochange <N>..0 <path>       # restore <path> from snapshot N
@@ -461,7 +461,7 @@ content-addressed; `/home` is user data that Restic backs up.
   restic's password file. **Do NOT wrap these calls in another `sudo`** — inner sudo
   triggers `env_reset` + PAM PATH reset, which drops the nix-shell's ephemeral PATH.
   Use plain `env`:
-  ```
+  ```bash
   env \
     RCLONE_CONFIG=/run/secrets/rclone/webdav.conf \
     RESTIC_PASSWORD_FILE=/run/secrets/restic/repo-password \
@@ -502,7 +502,7 @@ of the vault onto a helper device to run `sops`, mirror Phase 1's shred discipli
      local snapshots capture the file for ~24h. Use a RAM disk:
      `hdiutil attach -nomount ram://8192 | xargs -I{} diskutil erasevolume APFS 'ARamDisk' {}; SCRATCH=/Volumes/ARamDisk`
 2. Set the cleanup trap FIRST (before any paste):
-   ```
+   ```bash
    trap 'shred -u -- "$SCRATCH"/keys.txt 2>/dev/null; rm -rf "$SCRATCH" 2>/dev/null; diskutil eject ARamDisk 2>/dev/null' EXIT INT TERM
    ```
 3. Paste the recovery age private key to `"$SCRATCH"/keys.txt`; `chmod 600 "$SCRATCH"/keys.txt` immediately.
@@ -514,7 +514,7 @@ of the vault onto a helper device to run `sops`, mirror Phase 1's shred discipli
    (they roll off in ~24h; force-delete with `tmutil deletelocalsnapshots`).
 
 ### LUKS passphrase change
-```
+```bash
 sudo cryptsetup luksChangeKey /dev/nvme0n1p3   # cryptroot — also update `"astoria login"` in the vault
 sudo cryptsetup luksChangeKey /dev/nvme0n1p2   # cryptswap fallback — also update its vault entry
 ```
@@ -529,14 +529,14 @@ Symptoms: first boot after a BIOS update prompts for the cryptswap passphrase
 reports PCR mismatch.
 
 Fix:
-```
+```bash
 sudo systemd-cryptenroll --wipe-slot=tpm2 /dev/nvme0n1p2
 sudo systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=0+2+7 /dev/nvme0n1p2
 ```
 Prompted for the cryptswap passphrase to authorize. Reboot to verify silent unlock.
 
 ### Secure Boot state audit (occasional)
-```
+```bash
 sudo sbctl status              # Setup Mode: Disabled, Secure Boot: Enabled
 sudo sbctl verify              # every EFI file: Signed
 bootctl status | grep 'Secure'
@@ -552,7 +552,7 @@ If `sbctl verify` shows unsigned files after a manual bootloader tweak:
    Setup Mode by enrolling an empty signature DB. **`sbctl reset` does NOT touch
    `/var/lib/sbctl`** — the local keypair on disk survives.
 3. **Delete the local keypair** so step 4 doesn't silently no-op:
-   ```
+   ```bash
    sudo rm -rf /var/lib/sbctl/keys /var/lib/sbctl/GUID
    ```
    `sbctl create-keys` refuses to overwrite an existing keydir; skipping this rm
