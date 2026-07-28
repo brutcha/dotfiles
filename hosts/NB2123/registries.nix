@@ -46,16 +46,21 @@ in
       if [ -z "''${CORP_AZURE_DEVOPS_NPMRC:-}" ]; then
         echo "warn: CORP_AZURE_DEVOPS_NPMRC unset — .yarnrc.yml not written" >&2
       else
-        yarnrc="$HOME/.yarnrc.yml"
-        tmp="$(mktemp)"
-        ${pkgs.gettext}/bin/envsubst '$CORP_AZURE_DEVOPS_NPMRC' \
-          < ${yarnrcTemplate} > "$tmp"
-        if [ -f "$yarnrc" ] && ${pkgs.diffutils}/bin/cmp -s "$tmp" "$yarnrc"; then
-          chmod 0600 "$yarnrc" 2>/dev/null || true
-        else
-          $DRY_RUN_CMD install -m 0600 -T "$tmp" "$yarnrc"
-        fi
-        rm -f "$tmp"
+        # Subshell + EXIT trap: the (PAT-carrying) tmpfile is cleaned up on
+        # every exit path, including a set -e abort mid-block. Kept scoped so
+        # nothing outside this activation ever sees the trap.
+        (
+          yarnrc="$HOME/.yarnrc.yml"
+          tmp="$(mktemp)"
+          trap 'rm -f "$tmp" 2>/dev/null' EXIT
+          ${pkgs.gettext}/bin/envsubst '$CORP_AZURE_DEVOPS_NPMRC' \
+            < ${yarnrcTemplate} > "$tmp"
+          if [ -f "$yarnrc" ] && ${pkgs.diffutils}/bin/cmp -s "$tmp" "$yarnrc"; then
+            $DRY_RUN_CMD chmod 0600 "$yarnrc" 2>/dev/null || true
+          else
+            $DRY_RUN_CMD install -m 0600 -T "$tmp" "$yarnrc"
+          fi
+        )
       fi
     '');
 }

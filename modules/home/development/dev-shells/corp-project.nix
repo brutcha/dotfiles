@@ -29,11 +29,12 @@ let
   # to literal (avoids accidental shell interp in the emit path).
   isCorpRef = v: (builtins.match "\\$CORP_[A-Z_]+" v) != null;
 
-  # Refs → double-quoted for activation-time expansion.
-  # Literals → escapeShellArg at Nix time.
+  # Refs go through emit_env_ref which is nounset-safe (activation runs with
+  # set -eu; an unset $CORP_* would otherwise abort the whole block).
+  # Literals are single-quoted at Nix time so no shell interp happens.
   mkEnvExportLine = k: v:
     if isCorpRef v
-    then ''emit_env_line ${lib.escapeShellArg k} "${v}"''
+    then ''emit_env_ref ${lib.escapeShellArg k} ${lib.escapeShellArg (builtins.substring 1 (builtins.stringLength v) v)}''
     else ''emit_env_line ${lib.escapeShellArg k} ${lib.escapeShellArg v}'';
 
   envExportCommands = lib.concatStringsSep "\n"
@@ -117,18 +118,13 @@ in
       "claudeCodeCorpSecrets"
       "rtkInit"
     ] ''
-      # Cleans tmpfiles carrying resolved secrets if set -e aborts before
-      # the happy-path `install`.
-      _tmpEnv= _tmpCodex= _tmpClaude=
-      trap 'rm -f "$_tmpEnv" "$_tmpCodex" "$_tmpClaude" 2>/dev/null || true' EXIT
-
       # Skip install (and its mtime bump) when bytes are unchanged. Direnv
       # keys off flake.nix mtime for staleness — churn-free rebuild avoids
       # a multi-second nix print-dev-env on next `cd`.
       # Args: $1 = mode  $2 = src  $3 = dst
       _install_if_changed() {
         if [ -f "$3" ] && ${pkgs.diffutils}/bin/cmp -s "$2" "$3"; then
-          chmod "$1" "$3" 2>/dev/null || true
+          $DRY_RUN_CMD chmod "$1" "$3" 2>/dev/null || true
         else
           $DRY_RUN_CMD install -m "$1" -T "$2" "$3"
         fi
@@ -149,6 +145,17 @@ in
         printf "export %s='%s'\n" "$1" "$val"
       }
 
+      # Wraps emit_env_line for $CORP_* refs so an unset var doesn't abort
+      # the whole activation under set -u; warns and skips instead.
+      # Args: $1 = key to emit  $2 = source env var name (no `$` prefix)
+      emit_env_ref() {
+        if [ -z "''${!2+set}" ]; then
+          echo "warn: env var $2 unset — skipping env.sh key $1" >&2
+          return 0
+        fi
+        emit_env_line "$1" "''${!2}"
+      }
+
       $DRY_RUN_CMD install -d -m 0755 "$HOME/.local/share/dev-shells/${projectId}"
       _install_if_changed 0644 ${flakeContent} "$HOME/.local/share/dev-shells/${projectId}/flake.nix"
       _install_if_changed 0644 ${emdashConfig} "$HOME/.local/share/dev-shells/${projectId}/.emdash.json"
@@ -159,6 +166,7 @@ in
         ${envExportCommands}
       } > "$_tmpEnv"
       _install_if_changed 0600 "$_tmpEnv" "$HOME/.local/share/dev-shells/${projectId}/env.sh"
+      $DRY_RUN_CMD rm -f "$_tmpEnv"
 
       # Real files (not symlinks) so emdash preservePatterns copies them into
       # worktrees.
@@ -167,9 +175,9 @@ in
           src="$HOME/.local/share/dev-shells/${projectId}/$f"
           dst="$HOME/git/${projectId}/$f"
           if [ -e "$dst" ] && [ ! -L "$dst" ] && ${pkgs.diffutils}/bin/cmp -s "$src" "$dst"; then
-            chmod 0644 "$dst" 2>/dev/null || true
+            $DRY_RUN_CMD chmod 0644 "$dst" 2>/dev/null || true
           else
-            rm -f "$dst"
+            $DRY_RUN_CMD rm -f "$dst"
             $DRY_RUN_CMD install -m 0644 -T "$src" "$dst"
           fi
         done
@@ -185,6 +193,7 @@ in
       for v in ''${!CORP_*}; do corpVars="$corpVars \$$v"; done
       ${pkgs.gettext}/bin/envsubst "$corpVars" < ${codexProjectConfig} > "$_tmpCodex"
       _install_if_changed 0600 "$_tmpCodex" "${codexHomeDir}/config.toml"
+      $DRY_RUN_CMD rm -f "$_tmpCodex"
 
       # One ~/.codex/auth.json shared by all per-project homes.
       $DRY_RUN_CMD ln -sfn "$HOME/.codex/auth.json" "${codexHomeDir}/auth.json"
@@ -237,6 +246,7 @@ in
       else
         echo "warn: ${projectId} MCP snapshot skipped — jq walker failed (likely a \$CORP_* env unset; prior $claudeJson left in place)" >&2
       fi
+      $DRY_RUN_CMD rm -f "$_tmpClaude"
 
       for name in CLAUDE.md RTK.md plugins skills; do
         if [ -e "$HOME/.claude/$name" ]; then
@@ -253,7 +263,7 @@ in
     lib.hm.dag.entryAfter [ "corpSidecar_${attrSafeId}" ] ''
       _emdash_db_sync_${attrSafeId}() {
         local db projRow expected_pp expected_ss expected_scripts_setup
-        local projPath projPathSql ss_sql scripts_sql
+        local projPath projPathSql ss_sql scripts_sql current expected changed
         db="$HOME/Library/Application Support/emdash/emdash4.db"
         [ -f "$db" ] || return 0
 
@@ -296,16 +306,32 @@ in
         if /usr/bin/pgrep -qf '/Applications/emdash.app'; then
           echo "warn: emdash running during ${projectId} DB sync — quit + rebuild if the new values don't stick" >&2
         fi
-        if ! $DRY_RUN_CMD ${pkgs.sqlite}/bin/sqlite3 "$db" \
-              "UPDATE project_settings
-               SET shareable_project_settings_json =
-                     json_set(shareable_project_settings_json,
-                              '\$.preservePatterns', json('$expected_pp'),
-                              '\$.shellSetup',       '$ss_sql',
-                              '\$.scripts.setup',    '$scripts_sql'),
-                   updated_at = datetime('now')
-               WHERE project_id = '$projRow';" 2>/dev/null; then
+        # COALESCE guards against a NULL shareable_project_settings_json
+        # (json_set on NULL returns NULL — would blank the field). SELECT
+        # changes() reports the affected-row count so a projects-row-exists-
+        # but-project_settings-row-doesn't case doesn't report success.
+        local sql="UPDATE project_settings
+                   SET shareable_project_settings_json =
+                         json_set(COALESCE(shareable_project_settings_json, '{}'),
+                                  '\$.preservePatterns', json('$expected_pp'),
+                                  '\$.shellSetup',       '$ss_sql',
+                                  '\$.scripts.setup',    '$scripts_sql'),
+                       updated_at = datetime('now')
+                   WHERE project_id = '$projRow';
+                   SELECT changes();"
+
+        if [ -n "''${DRY_RUN_CMD:-}" ]; then
+          # Dry-run: report what would happen, skip the changes-check.
+          $DRY_RUN_CMD ${pkgs.sqlite}/bin/sqlite3 "$db" "$sql"
+          return 0
+        fi
+
+        if ! changed="$(${pkgs.sqlite}/bin/sqlite3 "$db" "$sql" 2>/dev/null)"; then
           echo "warn: emdash DB sync for ${projectId} failed — will retry on next rebuild" >&2
+          return 0
+        fi
+        if [ "$changed" != "1" ]; then
+          echo "warn: emdash DB sync for ${projectId} affected $changed rows (no project_settings row?) — will retry on next rebuild" >&2
           return 0
         fi
         echo "emdash: synced ${projectId} shareable settings" >&2
@@ -340,12 +366,15 @@ in
           fi
 
           # Unconditional: close any out-of-band widened mode even on no-op runs.
-          chmod 0600 "$envLocalPath" 2>/dev/null || true
+          $DRY_RUN_CMD chmod 0600 "$envLocalPath" 2>/dev/null || true
 
           tmp="$(mktemp)" || continue
+          # Only env.sh's stderr is silenced (source-time noise from any
+          # non-fatal shell warnings); awk warnings (clobber, newline,
+          # appended-key info) stay visible via /dev/stderr writes.
           if (
             set +u
-            . "$envShPath"
+            . "$envShPath" 2>/dev/null
             ${pkgs.gawk}/bin/awk \
                 -v KEYS="$managedKeys" \
                 -v ENVFILE="$envLocalPath" '
@@ -389,13 +418,13 @@ in
                 }
               }
             ' "$envLocalPath"
-          ) > "$tmp" 2>/dev/null; then
+          ) > "$tmp"; then
             if ! ${pkgs.diffutils}/bin/cmp -s "$tmp" "$envLocalPath"; then
               $DRY_RUN_CMD install -m 0600 -T "$tmp" "$envLocalPath"
               echo "env.local: synced managed tokens in $envLocalPath" >&2
             fi
           fi
-          rm -f "$tmp"
+          $DRY_RUN_CMD rm -f "$tmp"
         done
       }
       _env_local_sync_${attrSafeId} || true
