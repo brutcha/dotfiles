@@ -15,17 +15,34 @@ let
   claudeHomeDir = "${config.home.homeDirectory}/.local/share/dev-shells/${projectId}/claude";
 
   projectMcpServers = project.mcpServers or { };
-  # File in /nix/store (not a shell heredoc) so a mcpServers value containing
-  # an apostrophe can't break the activation-time jq invocation. Contents are
-  # unresolved `$CORP_*` refs — the jq walker below resolves them.
+  # In a store file (not a shell heredoc) so an apostrophe in any mcpServers
+  # value can't break the activation-time jq call. Unresolved $CORP_* refs —
+  # the jq walker below resolves them.
   projectMcpServersFile = pkgs.writeText "${projectId}-mcps.json"
     (builtins.toJSON projectMcpServers);
 
   envExportsAttrs = (project.env or { })
     // lib.optionalAttrs codexEnabled  { CODEX_HOME = codexHomeDir; }
     // lib.optionalAttrs claudeEnabled { CLAUDE_CONFIG_DIR = claudeHomeDir; };
-  envExports = lib.concatStringsSep ""
-    (lib.mapAttrsToList (k: v: "export ${k}=\"${v}\"\n") envExportsAttrs);
+
+  # Only `$CORP_<UPPER_SNAKE>` matches — `$HOME/foo` or `abc$def` fall through
+  # to literal (avoids accidental shell interp in the emit path).
+  isCorpRef = v: (builtins.match "\\$CORP_[A-Z_]+" v) != null;
+
+  # Refs → double-quoted for activation-time expansion.
+  # Literals → escapeShellArg at Nix time.
+  mkEnvExportLine = k: v:
+    if isCorpRef v
+    then ''emit_env_line ${lib.escapeShellArg k} "${v}"''
+    else ''emit_env_line ${lib.escapeShellArg k} ${lib.escapeShellArg v}'';
+
+  envExportCommands = lib.concatStringsSep "\n"
+    (lib.mapAttrsToList mkEnvExportLine envExportsAttrs);
+
+  # Keys the user declared in project.env — the set envLocalSync rewrites.
+  # Everything else in .env.local (manual literals, generated blocks,
+  # comments) is left alone.
+  envLocalManagedKeys = builtins.attrNames (project.env or { });
 
   shellHook = ''
     envFile="$HOME/.local/share/dev-shells/${projectId}/env.sh"
@@ -42,28 +59,41 @@ let
   envrcContent = pkgs.writeText ".envrc"
     "use flake ~/.local/share/dev-shells/${projectId}\n";
 
-  # Single source of truth for emdash `preservePatterns`. Written both into the
-  # base project's `.emdash.json` (worktree-runtime fallback source) and into
-  # emdash's own SQLite `project_settings` row (authoritative at worktree-
-  # provisioning time). The emdashDbSync activation below keeps the DB copy in
-  # sync with this list.
-  # Order matches what emdash's DB carries (append-only history via
-  # json_set/UI edits), so `[ "$current" = "$expected" ]` in the sync
-  # activation is a no-op once initial sync has run.
+  # Emdash treats its SQLite DB as authoritative post-migration; the
+  # `.emdash.json` file below is for documentation / first-import bootstrap
+  # only. The emdashDbSync activation is what actually shapes emdash's
+  # behavior for these projects.
+
+  # `.emdash.json` intentionally NOT here: emdash's schema filters it out on
+  # read (preservePatternsSchema.filter(p !== .emdash.json)). Handled via
+  # scripts.setup copy below.
   emdashPreservePatterns = [
     ".env"
     ".env.local"
     ".envrc"
     ".claude/.custom/**"
     ".claude/.custom-autoload/**"
-    ".emdash.json"
   ];
+
+  # Prepended by emdash to every PTY/agent spawn. Without this, Claude spawns
+  # without CLAUDE_CONFIG_DIR set → sessions leak to global ~/.claude/.
+  emdashShellSetup = ''. "$HOME/.local/share/dev-shells/${projectId}/env.sh"'';
+
+  # scripts.setup runs once at worktree creation. Always prefixed with the
+  # `.emdash.json` copy (which emdash's preservePatterns filter drops); then
+  # the per-project setup from private.nix. Default installs deps if the
+  # project doesn't override.
+  projectScriptsSetup = project.scriptsSetup or
+    "direnv allow . && direnv exec . yarn install --frozen-lockfile";
+
+  emdashScriptsSetup =
+    ''cp "$HOME/git/${projectId}/.emdash.json" .emdash.json 2>/dev/null || true; ${projectScriptsSetup}'';
 
   emdashConfig = pkgs.writeText ".emdash.json" (builtins.toJSON {
     preservePatterns = emdashPreservePatterns;
-    shellSetup = ''. "$HOME/.local/share/dev-shells/${projectId}/env.sh"'';
+    shellSetup = emdashShellSetup;
     scripts = {
-      setup = "direnv allow . && direnv exec . yarn install --frozen-lockfile && direnv exec . yarn gitnexus-analyze --skip-agents-md";
+      setup = emdashScriptsSetup;
       run = "";
       teardown = "";
     };
@@ -87,74 +117,95 @@ in
       "claudeCodeCorpSecrets"
       "rtkInit"
     ] ''
+      # Cleans tmpfiles carrying resolved secrets if set -e aborts before
+      # the happy-path `install`.
+      _tmpEnv= _tmpCodex= _tmpClaude=
+      trap 'rm -f "$_tmpEnv" "$_tmpCodex" "$_tmpClaude" 2>/dev/null || true' EXIT
+
+      # Skip install (and its mtime bump) when bytes are unchanged. Direnv
+      # keys off flake.nix mtime for staleness — churn-free rebuild avoids
+      # a multi-second nix print-dev-env on next `cd`.
+      # Args: $1 = mode  $2 = src  $3 = dst
+      _install_if_changed() {
+        if [ -f "$3" ] && ${pkgs.diffutils}/bin/cmp -s "$2" "$3"; then
+          chmod "$1" "$3" 2>/dev/null || true
+        else
+          $DRY_RUN_CMD install -m "$1" -T "$2" "$3"
+        fi
+      }
+
+      # Refuses newlines, single-quote-wraps the value so nothing in a KDBX
+      # token can break env.sh on source.
+      emit_env_line() {
+        local val="$2"
+        case "$val" in
+          *$'\n'*|*$'\r'*)
+            echo "warn: env $1 contains a newline — skipping env.sh emit" >&2
+            return 0
+            ;;
+        esac
+        # Trailing 3 apostrophes = Nix escape for 2 + one more from sed.
+        val="$(printf '%s' "$val" | ${pkgs.gnused}/bin/sed "s/'/'\\\\'''/g")"
+        printf "export %s='%s'\n" "$1" "$val"
+      }
+
       $DRY_RUN_CMD install -d -m 0755 "$HOME/.local/share/dev-shells/${projectId}"
-      $DRY_RUN_CMD install -m 0644 -T ${flakeContent} "$HOME/.local/share/dev-shells/${projectId}/flake.nix"
-      $DRY_RUN_CMD install -m 0644 -T ${emdashConfig} "$HOME/.local/share/dev-shells/${projectId}/.emdash.json"
-      $DRY_RUN_CMD install -m 0644 -T ${envrcContent} "$HOME/.local/share/dev-shells/${projectId}/.envrc"
+      _install_if_changed 0644 ${flakeContent} "$HOME/.local/share/dev-shells/${projectId}/flake.nix"
+      _install_if_changed 0644 ${emdashConfig} "$HOME/.local/share/dev-shells/${projectId}/.emdash.json"
+      _install_if_changed 0644 ${envrcContent} "$HOME/.local/share/dev-shells/${projectId}/.envrc"
 
-      tmpEnv="$(mktemp)"
-      cat > "$tmpEnv" <<ENV_EOF
-      ${envExports}ENV_EOF
-      $DRY_RUN_CMD install -m 0600 -T "$tmpEnv" "$HOME/.local/share/dev-shells/${projectId}/env.sh"
-      $DRY_RUN_CMD rm -f "$tmpEnv"
+      _tmpEnv="$(mktemp)"
+      {
+        ${envExportCommands}
+      } > "$_tmpEnv"
+      _install_if_changed 0600 "$_tmpEnv" "$HOME/.local/share/dev-shells/${projectId}/env.sh"
 
-      # Real files (not symlinks) so emdash preservePatterns copies them into worktrees.
+      # Real files (not symlinks) so emdash preservePatterns copies them into
+      # worktrees.
       if [ -d "$HOME/git/${projectId}" ]; then
         for f in .emdash.json .envrc; do
-          rm -f "$HOME/git/${projectId}/$f"
-          $DRY_RUN_CMD install -m 0644 -T \
-            "$HOME/.local/share/dev-shells/${projectId}/$f" \
-            "$HOME/git/${projectId}/$f"
+          src="$HOME/.local/share/dev-shells/${projectId}/$f"
+          dst="$HOME/git/${projectId}/$f"
+          if [ -e "$dst" ] && [ ! -L "$dst" ] && ${pkgs.diffutils}/bin/cmp -s "$src" "$dst"; then
+            chmod 0644 "$dst" 2>/dev/null || true
+          else
+            rm -f "$dst"
+            $DRY_RUN_CMD install -m 0644 -T "$src" "$dst"
+          fi
         done
       fi
     ${lib.optionalString codexEnabled ''
 
-      # Per-project Codex home. config.toml is rendered by codex.nix's _lib
-      # with this project's mcpServers merged in. Any `$CORP_*` refs in it
-      # (base_url, mcp env values, …) are substituted here from the
-      # activation-time process env — populated by keepassSecretsExtract.
-      #
-      # envsubst is passed an explicit `$CORP_*` allowlist built from currently
-      # exported vars. Unset refs stay as literal `$CORP_XXX` (fails loudly at
-      # Codex startup) instead of being silently blanked, and unrelated
-      # `$literals` elsewhere in TOML values are untouched.
+      # envsubst is passed an explicit $CORP_* allowlist so unset refs stay
+      # literal (fails loudly at Codex startup) and unrelated $literals in
+      # TOML values are untouched.
       $DRY_RUN_CMD install -d -m 0700 "${codexHomeDir}"
-      tmpCodex="$(mktemp)"
+      _tmpCodex="$(mktemp)"
       corpVars=""
       for v in ''${!CORP_*}; do corpVars="$corpVars \$$v"; done
-      ${pkgs.gettext}/bin/envsubst "$corpVars" < ${codexProjectConfig} > "$tmpCodex"
-      $DRY_RUN_CMD install -m 0600 -T "$tmpCodex" "${codexHomeDir}/config.toml"
-      $DRY_RUN_CMD rm -f "$tmpCodex"
+      ${pkgs.gettext}/bin/envsubst "$corpVars" < ${codexProjectConfig} > "$_tmpCodex"
+      _install_if_changed 0600 "$_tmpCodex" "${codexHomeDir}/config.toml"
 
-      # Share the single ~/.codex/auth.json across all per-project homes,
-      # so one `codex login --with-api-key` covers every project.
+      # One ~/.codex/auth.json shared by all per-project homes.
       $DRY_RUN_CMD ln -sfn "$HOME/.codex/auth.json" "${codexHomeDir}/auth.json"
     ''}
     ${lib.optionalString claudeEnabled ''
 
-      # Per-project Claude home. settings.json is a straight snapshot of the
-      # base ~/.claude/settings.json (which already carries env + plugins +
-      # permissions + RTK hook + corp JWT via
-      # claudeCodeSettings/rtkInit/claudeCodeCorpSecrets).
-      # Everything else (plugins/, skills/, CLAUDE.md, RTK.md) is symlinked so
-      # upstream edits propagate; sessions + caches are per-project.
+      # settings.json snapshot must come after claudeCodeCorpSecrets/rtkInit
+      # (see entryAfter above) — that's what populates env + JWT + RTK hook
+      # in the source file.
       $DRY_RUN_CMD install -d -m 0700 "${claudeHomeDir}"
       if [ -f "$HOME/.claude/settings.json" ]; then
-        $DRY_RUN_CMD install -m 0600 "$HOME/.claude/settings.json" "${claudeHomeDir}/settings.json"
+        _install_if_changed 0600 "$HOME/.claude/settings.json" "${claudeHomeDir}/settings.json"
       else
         echo "warn: ~/.claude/settings.json missing — skipping ${projectId} Claude snapshot" >&2
       fi
 
-      # Merge per-project MCPs into <claudeHome>/.claude.json.mcpServers.
-      # Two transforms per entry:
-      #   1. authorization_env_var → resolved literal headers.Authorization
-      #   2. env values that look like "$VAR" → resolved literal via process env
-      # Claude has no runtime env-var indirection, so both are baked at activation.
-      # Missing env refs abort via jq `error()` — the .claude.json write is
-      # then skipped, keeping any prior on-disk value rather than corrupting it
-      # with `Authorization: ""`.
+      # Bake project.mcpServers into .claude.json.mcpServers (Claude has no
+      # runtime env-var indirection). Missing env refs abort via jq error(),
+      # keeping any prior on-disk value rather than baking `Authorization: ""`.
       claudeJson="${claudeHomeDir}/.claude.json"
-      tmpClaude="$(mktemp)"
+      _tmpClaude="$(mktemp)"
       if claudeMcps="$(${pkgs.jq}/bin/jq -c '
         to_entries | map(
           . as $mcp
@@ -177,16 +228,15 @@ in
       ' ${projectMcpServersFile})"; then
         if [ -f "$claudeJson" ]; then
           ${pkgs.jq}/bin/jq --argjson mcps "$claudeMcps" '.mcpServers = $mcps' \
-            "$claudeJson" > "$tmpClaude"
+            "$claudeJson" > "$_tmpClaude"
         else
           ${pkgs.jq}/bin/jq -n --argjson mcps "$claudeMcps" '{mcpServers: $mcps}' \
-            > "$tmpClaude"
+            > "$_tmpClaude"
         fi
-        $DRY_RUN_CMD install -m 0600 -T "$tmpClaude" "$claudeJson"
+        _install_if_changed 0600 "$_tmpClaude" "$claudeJson"
       else
         echo "warn: ${projectId} MCP snapshot skipped — jq walker failed (likely a \$CORP_* env unset; prior $claudeJson left in place)" >&2
       fi
-      $DRY_RUN_CMD rm -f "$tmpClaude"
 
       for name in CLAUDE.md RTK.md plugins skills; do
         if [ -e "$HOME/.claude/$name" ]; then
@@ -196,48 +246,159 @@ in
     ''}
     '';
 
-  # Keep emdash's SQLite `preservePatterns` for this project in sync with the
-  # Nix-declared list. Emdash uses the DB (not the base `.emdash.json`) when
-  # provisioning a new worktree, so without this the list drifts and new
-  # worktrees miss files like `.emdash.json` itself. Idempotent + fail-open.
-  #
-  # Wrapped in a function so `return 0` on skip paths doesn't take down the
-  # rest of the home-manager activation script (which runs with `set -e`),
-  # and so every sqlite3 call is guarded against transient errors like
-  # SQLITE_BUSY without propagating them.
+  # Keep emdash's DB row in sync with the Nix-declared shareable settings.
+  # Function + `|| true` so return-on-skip and sqlite failures (busy, missing
+  # row, missing file) can't cascade into the outer set -e activation.
   home.activation."emdashDbSync_${attrSafeId}" =
     lib.hm.dag.entryAfter [ "corpSidecar_${attrSafeId}" ] ''
       _emdash_db_sync_${attrSafeId}() {
-        local db projRow expected current
+        local db projRow expected_pp expected_ss expected_scripts_setup
+        local projPath projPathSql ss_sql scripts_sql
         db="$HOME/Library/Application Support/emdash/emdash4.db"
-        [ -f "$db" ] || return 0                   # emdash not installed → skip
+        [ -f "$db" ] || return 0
+
+        # Doubles apostrophes for SQL single-quoted literals.
+        _sqlq() {
+          printf '%s' "$1" | ${pkgs.gnused}/bin/sed "s/'/'''/g"
+        }
+
+        projPath="$HOME/git/${projectId}"
+        projPathSql="$(_sqlq "$projPath")"
 
         projRow="$(${pkgs.sqlite}/bin/sqlite3 "$db" \
-          "SELECT id FROM projects WHERE path = '$HOME/git/${projectId}';" \
-          2>/dev/null)" || return 0                # sqlite busy/unreadable → skip
-        [ -n "$projRow" ] || return 0              # project not imported yet → skip
+          "SELECT id FROM projects WHERE path = '$projPathSql';" \
+          2>/dev/null)" || return 0
+        [ -n "$projRow" ] || return 0
 
-        expected='${builtins.toJSON emdashPreservePatterns}'
+        expected_pp='${builtins.toJSON emdashPreservePatterns}'
+        expected_ss=${lib.escapeShellArg emdashShellSetup}
+        expected_scripts_setup=${lib.escapeShellArg emdashScriptsSetup}
+        ss_sql="$(_sqlq "$expected_ss")"
+        scripts_sql="$(_sqlq "$expected_scripts_setup")"
+
         current="$(${pkgs.sqlite}/bin/sqlite3 "$db" \
-          "SELECT json_extract(shareable_project_settings_json, '\$.preservePatterns')
+          "SELECT json_object(
+                   'preservePatterns', json_extract(shareable_project_settings_json, '\$.preservePatterns'),
+                   'shellSetup',       json_extract(shareable_project_settings_json, '\$.shellSetup'),
+                   'scriptsSetup',     json_extract(shareable_project_settings_json, '\$.scripts.setup'))
            FROM project_settings WHERE project_id = '$projRow';" \
-          2>/dev/null)" || return 0                # sqlite busy → skip
-        [ "$current" = "$expected" ] && return 0   # already in sync → no-op
+          2>/dev/null)" || return 0
+        expected="$(${pkgs.jq}/bin/jq -cn \
+          --argjson pp "$expected_pp" \
+          --arg ss "$expected_ss" \
+          --arg ssu "$expected_scripts_setup" \
+          '{preservePatterns:$pp, shellSetup:$ss, scriptsSetup:$ssu}')"
+        [ "$current" = "$expected" ] && return 0
 
-        if ${pkgs.procps}/bin/pgrep -qf '/Applications/emdash.app'; then
-          echo "warn: emdash running during ${projectId} DB sync — quit + rebuild if the new value doesn't stick" >&2
+        # This activation only reaches this line on darwin (the DB check
+        # above short-circuits on Linux — emdash's app-support path is mac-
+        # specific), so /usr/bin/pgrep is safe to hardcode.
+        if /usr/bin/pgrep -qf '/Applications/emdash.app'; then
+          echo "warn: emdash running during ${projectId} DB sync — quit + rebuild if the new values don't stick" >&2
         fi
-        if ! $DRY_RUN_CMD ${pkgs.sqlite}/bin/sqlite3 "$db" "UPDATE project_settings
-              SET shareable_project_settings_json =
-                    json_set(shareable_project_settings_json, '\$.preservePatterns', json('$expected')),
-                  updated_at = datetime('now')
-              WHERE project_id = '$projRow';" 2>/dev/null; then
-          echo "warn: emdash DB sync for ${projectId} failed (transient DB lock?) — will retry on next rebuild" >&2
+        if ! $DRY_RUN_CMD ${pkgs.sqlite}/bin/sqlite3 "$db" \
+              "UPDATE project_settings
+               SET shareable_project_settings_json =
+                     json_set(shareable_project_settings_json,
+                              '\$.preservePatterns', json('$expected_pp'),
+                              '\$.shellSetup',       '$ss_sql',
+                              '\$.scripts.setup',    '$scripts_sql'),
+                   updated_at = datetime('now')
+               WHERE project_id = '$projRow';" 2>/dev/null; then
+          echo "warn: emdash DB sync for ${projectId} failed — will retry on next rebuild" >&2
           return 0
         fi
-        echo "emdash: synced ${projectId} preservePatterns" >&2
+        echo "emdash: synced ${projectId} shareable settings" >&2
       }
       _emdash_db_sync_${attrSafeId} || true
+    '';
+
+  # Bake managed tokens into every .env.local (base + worktrees). Scripts
+  # that read tokens via bare dotenv or dotenv.config({override: true}) don't
+  # expand ${VAR}, so the literal has to be in the file directly. Non-managed
+  # lines (manual literals, generated URL blocks, comments) pass through.
+  home.activation."envLocalSync_${attrSafeId}" =
+    lib.hm.dag.entryAfter [ "corpSidecar_${attrSafeId}" ] ''
+      _env_local_sync_${attrSafeId}() {
+        local envShPath envLocalPath tmp managedKeys
+        envShPath="$HOME/.local/share/dev-shells/${projectId}/env.sh"
+        [ -f "$envShPath" ] || return 0
+        managedKeys='${lib.concatStringsSep " " envLocalManagedKeys}'
+        [ -n "$managedKeys" ] || return 0
+
+        shopt -s nullglob
+        for envLocalPath in \
+          "$HOME/git/${projectId}/.env.local" \
+          "$HOME/emdash/worktrees/${projectId}/emdash/"*/.env.local; do
+          [ -f "$envLocalPath" ] || continue
+
+          # install -T would rename over the target — a symlinked .env.local
+          # would clobber whatever it points at (potentially another repo).
+          if [ -L "$envLocalPath" ]; then
+            echo "warn: skipping symlinked $envLocalPath" >&2
+            continue
+          fi
+
+          # Unconditional: close any out-of-band widened mode even on no-op runs.
+          chmod 0600 "$envLocalPath" 2>/dev/null || true
+
+          tmp="$(mktemp)" || continue
+          if (
+            set +u
+            . "$envShPath"
+            ${pkgs.gawk}/bin/awk \
+                -v KEYS="$managedKeys" \
+                -v ENVFILE="$envLocalPath" '
+              BEGIN {
+                split(KEYS, k, " ")
+                for (i in k) { managed[k[i]] = 1; unseen[k[i]] = 1 }
+              }
+              {
+                eq = index($0, "=")
+                if (eq == 0) { print; next }
+                key = substr($0, 1, eq-1)
+                oldval = substr($0, eq+1)
+                if (!(key in managed)) { print; next }
+                delete unseen[key]
+                newval = ENVIRON[key]
+                if (newval == "") { print; next }
+                if (index(newval, "\n") > 0 || index(newval, "\r") > 0) {
+                  print "warn: env " key " has embedded newline; keeping current line in " ENVFILE > "/dev/stderr"
+                  print
+                  next
+                }
+                refPattern = "${"$"}{" key "}"
+                if (oldval != "" && oldval != newval && oldval != refPattern) {
+                  # Length only — never log the secret itself.
+                  print "warn: clobbering manual edit to " key " (" length(oldval) " chars) in " ENVFILE > "/dev/stderr"
+                }
+                print key "=" newval
+              }
+              END {
+                # Append managed keys that never appeared in the file so
+                # bare dotenv scripts can see them.
+                for (key in unseen) {
+                  newval = ENVIRON[key]
+                  if (newval == "") continue
+                  if (index(newval, "\n") > 0 || index(newval, "\r") > 0) {
+                    print "warn: env " key " has embedded newline; not appended to " ENVFILE > "/dev/stderr"
+                    continue
+                  }
+                  print key "=" newval
+                  print "info: appended missing managed key " key " to " ENVFILE > "/dev/stderr"
+                }
+              }
+            ' "$envLocalPath"
+          ) > "$tmp" 2>/dev/null; then
+            if ! ${pkgs.diffutils}/bin/cmp -s "$tmp" "$envLocalPath"; then
+              $DRY_RUN_CMD install -m 0600 -T "$tmp" "$envLocalPath"
+              echo "env.local: synced managed tokens in $envLocalPath" >&2
+            fi
+          fi
+          rm -f "$tmp"
+        done
+      }
+      _env_local_sync_${attrSafeId} || true
     '';
 
   programs.git.includes = [
