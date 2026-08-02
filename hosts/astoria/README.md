@@ -10,228 +10,128 @@ choices; this file is the operator's runbook.
 
 ---
 
-## Prerequisites (one-time, before touching astoria)
+## Rebuild
+- Preferred: `cd ~/git/dotfiles && sudo nixos-rebuild switch --flake .#astoria`
+- Via /etc/nixos symlink: `sudo nixos-rebuild switch --flake /etc/nixos#astoria`
+- From dev machine over LAN: `nixos-rebuild switch --flake .#astoria --target-host brutcha@astoria --use-remote-sudo`
 
-- [ ] **Password vault** reachable from a non-astoria device. astoria decrypts
-      its own secrets on first boot using its host SSH key — if that key ever
-      dies, recovery needs the age key stored in the vault. No non-astoria
-      vault access = no recovery.
-- [ ] **Vault end-to-end / client-side encryption enabled** — set the vault's
-      unlock secret. Without it, the server operator can read every entry.
-      Verify the setting is active before storing recovery material.
-- [ ] **WebDAV app-password** for astoria, from your WebDAV backend's web UI
-      (Devices/Sessions/Tokens section, label `"astoria-restic"`). DO NOT
-      reuse the main account password.
-- [ ] **rclone-obscure the app-password** for use in rclone.conf (Phase 1
-      step 7). Passing the password as an argv positional would leak it to
-      `ps` and shell history; `read -rs` prompts on tty and never puts the
-      value in argv:
-      ```bash
-      nix-shell -p rclone --run 'IFS= read -rsp "app-password: " pw; echo; rclone obscure "$pw"; unset pw'
-      ```
-- [ ] **WebDAV endpoint sanity check** — auth works, directory lists.
-      `-u USER` (no colon) makes curl prompt for the password on tty rather
-      than leaving it in argv / scrollback / `ps`:
-      ```bash
-      curl -X PROPFIND -H 'Depth: 0' -u USER https://WEBDAV_HOST/WEBDAV_ROOT/
-      ```
-      Success = `<d:multistatus>…</d:multistatus>` XML.
+## Update
+- Flake inputs: `nix flake update` (from dev machine, review lock diff, commit)
+- Firmware: `fwupdmgr refresh && fwupdmgr get-updates && fwupdmgr update`
 
-> **First install vs reinstall**: on the very first install, Phase 0 + Phase 1
-> were already done during scaffolding — skip to Phase 2. Phases 0/1 below are
-> the runbook for reinstalls (host key rotation, HW replacement, disaster
-> recovery).
+## Rollback
 
----
+Two independent rollback mechanisms — use the right one for the failure mode.
 
-## Phase 0 — repo scaffolding (one-time)
+**NixOS generation rollback** — for reverting a `nixos-rebuild switch` that broke
+something:
+- Lanzaboote boot menu at boot → pick a previous generation
+- Or from CLI (still-booted system): `sudo nixos-rebuild switch --rollback`
 
-Create `.sops.yaml` at the repo root with placeholder recipients (Phase 1 step
-1+2 fills in the real pubkeys). Commit + push.
-
----
-
-## Phase 1 — pre-generate on the dev machine
-
-Dev machine = any host you already trust with the repo checked out.
-
-**Placeholder convention** — anywhere you see `<foo>` below, substitute BEFORE
-running. Bash treats `<` as an input-redirect metachar, so pasting `<foo>` as
-part of a command silently misbehaves rather than erroring.
-
-**Cleanup discipline** — Phase 1 writes plaintext secrets to `/tmp` and shreds
-them at exit. On macOS `/tmp` is APFS (persistent, `shred` unreliable); on
-Linux usually tmpfs. A bash `trap` on EXIT/INT/TERM shreds on any clean exit.
-The trap must be set INSIDE the nix-shell subshell — traps don't propagate
-across exec into a fresh bash. For maximum hygiene, do Phase 1 in `/dev/shm`
-(Linux) or an hdiutil RAM disk (macOS).
-
-### Enter the shell
-
+**Snapper rootfs rollback** — for reverting non-`/nix/store` drift (files edited
+outside the flake, corrupted state under `/etc`, `/var`, `/home`). Snapshots live
+under `/.snapshots/<N>/snapshot` and are created at every boot by `snapper-boot.service`:
 ```bash
-cd ~/git/dotfiles
-nix-shell -p ssh-to-age age sops mkpasswd
+sudo snapper -c root list                           # inspect snapshots + timestamps
+sudo snapper -c root diff <N>..<M>                  # peek at what would change
+sudo snapper -c root undochange <N>..0 <path>       # restore <path> from snapshot N
+sudo snapper -c root rollback <N>                   # nuke current @root, replace with snapshot N — reboots into it
 ```
+`snapper rollback` is destructive to the current @root (it swaps subvolumes); prefer
+`undochange` for targeted recovery when only a few files are affected.
 
-Wait for the `[nix-shell:…]$` prompt, then paste FIRST:
-
-```bash
-trap 'shred -u -- /tmp/astoria_host_key* /tmp/recovery.txt /tmp/astoria-hash 2>/dev/null || rm -Pf -- /tmp/astoria_host_key* /tmp/recovery.txt /tmp/astoria-hash 2>/dev/null' EXIT INT TERM
-```
-
-### Steps
-
-1. **Astoria host SSH key**
-   ```bash
-   ssh-keygen -t ed25519 -f /tmp/astoria_host_key -N '' -C mail@brutcha.dev
-   ssh-to-age -i /tmp/astoria_host_key.pub
-   ```
-   - Pubkey line → replace `age1astoriahostPUBKEY_TBD` in `.sops.yaml`.
-   - Private key → vault entry `"astoria SSH host key"`. If your vault's
-     Password field rejects multi-line PEM, base64 it to a single line first
-     (decoded back during Phase 3 step 4):
-     ```bash
-     base64 -i /tmp/astoria_host_key | tr -d '\n' | pbcopy          # macOS
-     base64    /tmp/astoria_host_key | tr -d '\n' | xclip -sel c    # Linux (X11)
-     base64    /tmp/astoria_host_key | tr -d '\n' | wl-copy         # Linux (Wayland)
-     ```
-
-2. **Recovery age keypair** (once, ever)
-   ```bash
-   age-keygen -o /tmp/recovery.txt
-   ```
-   - Pubkey → replace `age1recoveryPUBKEY_TBD` in `.sops.yaml`.
-   - `AGE-SECRET-KEY-1…` line → vault entry `"astoria sops recovery"`
-     (single-line, no base64 needed).
-
-3. **Export recovery key for sops**
-   ```bash
-   export SOPS_AGE_KEY_FILE=/tmp/recovery.txt
-   ```
-   Step 7 encrypts fresh (only needs pubkeys). Step 8 (`sops updatekeys`)
-   decrypts + re-encrypts and needs the recovery key.
-
-4. **Login passphrase** → vault entry `"astoria login"`. Used for cryptroot
-   LUKS AND user login (same value; muscle memory). English-keyboard
-   typeable — the LUKS prompt uses US layout.
-
-4a. **Cryptswap fallback passphrase** → vault entry `"astoria cryptswap"`.
-    Different value from `"astoria login"`. Only ever typed when TPM
-    auto-unlock fails (BIOS updates, TPM state changes).
-
-5. **Restic repo password** → vault entry `"astoria restic repo"`. Strong
-   random:
-   ```bash
-   openssl rand -base64 48
-   ```
-
-6. **User password hash** — via temp file to keep the hash off scrollback.
-   The subshell-scoped `umask 077` forces the redirected file to be created
-   as 0600 in a single syscall (no umask-races, no leak into the outer shell):
-   ```bash
-   ( umask 077 && mkpasswd -m yescrypt > /tmp/astoria-hash )
-   ```
-   Enter the login passphrase from step 4 at the prompt.
-
-7. **Populate secrets YAML**
-   ```bash
-   mkdir -p hosts/astoria/secrets     # sops uses os.WriteFile — no MkdirAll
-   sops hosts/astoria/secrets/astoria.yaml
-   ```
-   Top-level YAML keys must match what sops-nix looks up (see `secrets.nix`):
-   ```yaml
-   users:
-     brutcha:
-       hashed-password: PASTE_FROM_/tmp/astoria-hash
-   restic:
-     repo-password: PASTE_FROM_STEP_5
-   rclone:
-     webdav.conf: |
-       [webdav]
-       type = webdav
-       url = https://WEBDAV_HOST/WEBDAV_ROOT
-       vendor = RCLONE_WEBDAV_VENDOR
-       user = WEBDAV_USER
-       pass = OBSCURED_FROM_PREREQUISITES
-   ```
-   If ANY placeholder remains angle-bracketed on save,
-   `restic-backups-webdav.service` will fail on first boot.
-
-8. **Encrypt to both recipients**
-   ```bash
-   sops updatekeys hosts/astoria/secrets/astoria.yaml
-   ```
-
-9. **Commit + push**.
-
-10. **Shred + clear scrollback**
-    ```bash
-    shred -u /tmp/astoria_host_key* /tmp/recovery.txt /tmp/astoria-hash
-    printf '\033c'
-    ```
+Note: Snapper's SUBVOLUME is `/` (targets @root only). `/nix`, `/home`, `/.snapshots`
+are separate subvolumes and NOT covered — `/nix/store` is already immutable +
+content-addressed; `/home` is user data that Restic backs up.
 
 ---
 
-## Phase 2 — physical machine prep
+## Secrets (sops)
 
-### BIOS
+astoria decrypts `hosts/astoria/secrets/astoria.yaml` at boot using its SSH
+host key (converted to age) plus a recovery age key — both listed as
+recipients under the `&astoria` / `&brutcha_recovery` anchors in `.sops.yaml`
+at the repo root. The secret schema sops-nix expects in that YAML is
+declared in `hosts/astoria/secrets.nix`.
 
-- [ ] **Flash latest firmware first** — Windows Dell Update or `fwupdmgr update`
-      from the installer. Doing this AFTER Phase 4c TPM enrollment invalidates
-      PCR seals (avoidable round trip).
-- [ ] **Signs of Life off**.
-- [ ] **BIOS admin password UNSET** (TLP charge thresholds require it).
-- [ ] **Secure Boot: OFF, in Setup Mode** — Advanced Boot Options → Secure
-      Boot → "Reset to Setup Mode" / "Delete All Keys". Some Dell BIOSes
-      need an admin password to reach this menu: set → reset SB → unset.
-- [ ] **TPM: On, and cleared** — Security → TPM → Clear TPM.
+Tooling docs: [sops-nix](https://github.com/Mic92/sops-nix) (the NixOS
+module wiring `.sops.yaml` → `secrets.nix` → `/run/secrets`),
+[sops](https://github.com/getsops/sops) (the encryption CLI), and
+[age](https://github.com/FiloSottile/age) (the key format).
 
-### Installer
+---
 
-- [ ] **Boot NixOS 26.11 minimal installer USB** (nixos-unstable ISO OK
-      while 26.11 is pre-release — flake pins nixpkgs to the same channel).
-- [ ] **Wi-Fi**:
-      ```bash
-      nmcli device wifi connect <ssid> password <psk>
-      ```
+## Dev-machine secrets (only needed for host-key rotation / disaster recovery)
+
+Generating astoria's secrets from scratch needs, once:
+- An SSH host key for astoria, converted to age via `ssh-to-age` — its
+  pubkey becomes the `&astoria` recipient in `.sops.yaml`; the private key
+  goes to `/etc/ssh/ssh_host_ed25519_key` on the machine (Phase 3 step 3)
+  and to the vault (`"astoria SSH host key"`) for recovery.
+- A recovery age keypair (`age-keygen`, generated once, ever, reused across
+  hosts) → pubkey is the `&brutcha_recovery` anchor; private key → vault
+  (`"astoria sops recovery"`). Follow the shred discipline in "Recovery age
+  key — helper-device shred discipline" below whenever it leaves the vault.
+- Login/cryptswap LUKS passphrases, a restic repo password, and a
+  `mkpasswd -m yescrypt` password hash — each in its own vault entry
+  (`"astoria login"`, `"astoria cryptswap"`, `"astoria restic repo"`), then
+  assembled into `hosts/astoria/secrets/astoria.yaml` matching the schema
+  declared in `secrets.nix`, and `sops updatekeys
+  hosts/astoria/secrets/astoria.yaml`, commit, push.
+
+Tooling docs: [ssh-to-age](https://github.com/Mic92/ssh-to-age),
+[age](https://github.com/FiloSottile/age),
+[sops](https://github.com/getsops/sops).
 
 ---
 
 ## Phase 3 — install
 
+Boot the [nix-community/nixos-images](https://github.com/nix-community/nixos-images)
+unstable installer ISO. Grab the IP + root password from its on-screen
+QR/JSON, then SSH in as root — everything below runs inside that one
+session (no `sudo` needed anywhere in this phase, you're already root),
+except the host-key transfer, which is run from the dev machine.
+
 ```bash
 GITHUB_USER=<your-github-username>
-ASTORIA_IP=<astoria-lan-ip>       # from `ip addr | grep 'inet '` on the installer
+ASTORIA_IP=<astoria-lan-ip>       # from the installer's on-screen/QR/clipboard info
+ssh "root@${ASTORIA_IP}"
 ```
 
 ### 1. Clone the flake
 
 ```bash
-nix-shell -p git
-git clone "https://github.com/${GITHUB_USER}/dotfiles" /tmp/dotfiles
+nix --extra-experimental-features 'nix-command flakes' run nixpkgs#git -- \
+  clone "https://github.com/${GITHUB_USER}/dotfiles" /tmp/dotfiles
 cd /tmp/dotfiles
 ```
 
-### 2. Hardware inventory
-
-Run the verify script from the just-cloned (git-verified) copy — never
-pipe a raw HTTP response into `sh`; a compromised repo tag or an MITM'd
-CDN response would execute unreviewed. `hardware.nix` assumes AX201 /
-Ice Lake; adjust it if the output disagrees BEFORE the install step.
-
+The minimal ISO's closure is intentionally bare, and flakes aren't enabled
+by default on it either — anything else needed mid-install has to be
+fetched on-demand the same way:
 ```bash
-sh hosts/astoria/verify-hardware.sh
+nix --extra-experimental-features 'nix-command flakes' run nixpkgs#<pkg> -- ...
 ```
+Packages that come up needing this during install: `sops`, `ssh-to-age`,
+`sbctl`, `pciutils` (for `lspci`), `stress-ng`, `s-tui`,
+`linuxPackages.turbostat`. `sbctl` also needs `--disable-landlock` when
+writing outside its expected paths (e.g. `--export /mnt/var/lib/sbctl/keys`
+in step 4 below), since it sandboxes itself with Landlock by default.
 
-If it flags a QCA6390 Wi-Fi chip, unavailable `platform_profile`,
-non-`s2idle` sleep mode, etc., edit `hosts/astoria/hardware.nix` now
-(see the in-file comments for the alternate values) — the install
-step below picks up the changes.
+### 2. Partition + format
 
-### 3. Partition + format
+This model defaults to **RAID (Intel RST) mode** in BIOS, which hides the
+NVMe drive from normal enumeration (`lspci` shows a `RAID bus controller`
+instead of a `Non-Volatile memory controller`; `dmesg` shows `ahci ...:
+Found 1 remapped NVMe devices`). Fix before running disko: BIOS → System
+Configuration → **SATA Operation: AHCI** (switch from RAID). No config
+changes needed once this is set correctly — `nvme` in
+`boot.initrd.availableKernelModules` is already sufficient once the drive
+enumerates natively.
 
 ```bash
-sudo nix run '.#disko' \
+nix run '.#disko' \
   --extra-experimental-features 'nix-command flakes' \
   -- --mode destroy,format,mount --flake .#astoria
 ```
@@ -241,10 +141,6 @@ binary through the flake's own `packages.x86_64-linux.disko` re-export,
 which is pinned via `flake.lock` — no unpinned github ref, no MITM-able
 fetch, exact same code as everything else the flake produces.
 
-Why the other flags: `sudo` because disko doesn't self-elevate; the
-`--extra-experimental-features` inline because NixOS sudo drops `NIX_CONFIG`
-env, so `export NIX_CONFIG=…` in the outer shell wouldn't survive.
-
 Prompts, in order:
 1. `Type 'yes' to continue, anything else to abort:` — type literally `yes`.
    **Don't paste a passphrase here** (anything except `yes` aborts before
@@ -253,53 +149,34 @@ Prompts, in order:
 2. **cryptswap** LUKS passphrase (2×) — from vault `"astoria cryptswap"`.
 3. **cryptroot** LUKS passphrase (2×) — from vault `"astoria login"`.
 
-### 4. Transfer astoria's SSH host key from dev → installer
+### 3. Transfer astoria's SSH host key from dev → installer
 
-On the installer, set a throwaway login password (the `nixos` user starts
-empty, which blocks ssh):
+From the dev machine (a separate terminal from the root SSH session above),
+scp the raw private key over, then move it into place with the right
+owner/mode and shred the transient copy:
 ```bash
-sudo passwd nixos
+scp /tmp/astoria_host_key "root@${ASTORIA_IP}:/tmp/astoria_host_key"
+ssh "root@${ASTORIA_IP}" 'mkdir -p /mnt/etc/ssh && \
+  install -m 600 -o root -g root /tmp/astoria_host_key /mnt/etc/ssh/ssh_host_ed25519_key && \
+  shred -u /tmp/astoria_host_key'
 ```
 
-On the dev machine, pipe the base64'd key from clipboard through `base64 -d`
-into the installer over ssh. `sudo install` (below) atomically creates the
-target file with the right owner + 0600 mode — no umask window during which
-the file would be world-readable.
-
+Back in the installer session, derive the .pub (strict openssh refuses to
+read a 0644 private key without a matching .pub):
 ```bash
-# Option A — Linux dev (xclip):
-xclip -o -selection clipboard | base64 -d | ssh "nixos@${ASTORIA_IP}" \
-  'sudo mkdir -p /mnt/etc/ssh && sudo install -m 600 -o root -g root /dev/stdin /mnt/etc/ssh/ssh_host_ed25519_key'
-
-# Option B — macOS dev (pbpaste):
-pbpaste | base64 -d | ssh "nixos@${ASTORIA_IP}" \
-  'sudo mkdir -p /mnt/etc/ssh && sudo install -m 600 -o root -g root /dev/stdin /mnt/etc/ssh/ssh_host_ed25519_key'
-
-# Option C — heredoc paste (no clipboard tool available):
-ssh "nixos@${ASTORIA_IP}" 'sudo mkdir -p /mnt/etc/ssh && base64 -d | sudo install -m 600 -o root -g root /dev/stdin /mnt/etc/ssh/ssh_host_ed25519_key' <<'EOF'
-<paste-base64-string-from-vault-here>
-EOF
+ssh-keygen -y -f /mnt/etc/ssh/ssh_host_ed25519_key | \
+  install -m 644 -o root -g root /dev/stdin /mnt/etc/ssh/ssh_host_ed25519_key.pub
 ```
 
-If you stored the key as raw PEM (not base64), drop the `| base64 -d` and
-paste the PEM directly.
-
-On the installer, derive the .pub (strict openssh refuses to read a 0644
-private key without a matching .pub):
-```bash
-sudo ssh-keygen -y -f /mnt/etc/ssh/ssh_host_ed25519_key | \
-  sudo install -m 644 -o root -g root /dev/stdin /mnt/etc/ssh/ssh_host_ed25519_key.pub
-```
-
-### 5. Generate sbctl Secure Boot keys
+### 4. Generate sbctl Secure Boot keys
 
 `nixos-install` signs the bootloader via Lanzaboote's installHook using these
 keys, so they must exist at `/mnt/var/lib/sbctl` before install.
 
 ```bash
-sudo nix-shell -p sbctl --run 'sbctl create-keys --help'    # confirm flag names first
-sudo mkdir -p /mnt/var/lib/sbctl
-sudo nix-shell -p sbctl --run 'sbctl create-keys --export /mnt/var/lib/sbctl/keys --database-path /mnt/var/lib/sbctl/GUID'
+nix --extra-experimental-features 'nix-command flakes' run nixpkgs#sbctl -- create-keys --help    # confirm flag names first
+mkdir -p /mnt/var/lib/sbctl
+nix --extra-experimental-features 'nix-command flakes' run nixpkgs#sbctl -- create-keys --export /mnt/var/lib/sbctl/keys --database-path /mnt/var/lib/sbctl/GUID
 ```
 
 Gotchas:
@@ -307,10 +184,10 @@ Gotchas:
   not a directory. Passing a directory → EISDIR → no keys ever created.
 - Older sbctl uses `--keydir` / `--pki-dir` instead. Check `--help` first.
 
-### 6. Install
+### 5. Install
 
 ```bash
-sudo nixos-install --flake /tmp/dotfiles#astoria --no-root-passwd
+nixos-install --flake /tmp/dotfiles#astoria --no-root-passwd
 ```
 
 During activation:
@@ -321,7 +198,7 @@ During activation:
 - cryptswap TPM keyslot doesn't exist yet — first boot prompts for the
   disko-set passphrase. TPM enrollment happens in Phase 4c.
 
-### 7. Reboot
+### 6. Reboot
 
 cryptroot passphrase → cryptswap passphrase (once, until Phase 4c) → greetd
 → user login → Sway.
@@ -340,17 +217,8 @@ cryptroot passphrase → cryptswap passphrase (once, until Phase 4c) → greetd
 
 ### 4a. Bring-up checks
 
-- [ ] Cryptroot + cryptswap passphrases accept vault values.
-- [ ] Sway starts (`Mod4+Return` → ghostty; `Mod4+Space` → fuzzel; Capslock
-      cycles us↔cz).
-- [ ] `systemctl status sops-install-secrets` — active, exit 0.
-- [ ] `ls /run/secrets-for-users/users/brutcha/` — hashed-password present.
-- [ ] `ls /run/secrets/{restic,rclone}/` — secrets present.
-- [ ] `lspci -k` — Wi-Fi chip matches Phase 3 hw-inventory output.
-- [ ] `cat /sys/power/mem_sleep` — `[s2idle]` bracketed.
-- [ ] **Git-clone the flake** to `/home/brutcha/git/dotfiles` — otherwise
-      `environment.etc.nixos.source` is a dangling symlink and later
-      edit-then-rebuild has no on-machine flake to edit.
+Still open as of the last session:
+
 - [ ] **Add the dev-machine ssh pubkey** to
       `users.users.brutcha.openssh.authorizedKeys.keys` (edit
       `hosts/astoria/default.nix` in the just-cloned dir, commit, rebuild)
@@ -358,7 +226,6 @@ cryptroot passphrase → cryptswap passphrase (once, until Phase 4c) → greetd
 - [ ] Manual first Restic backup:
       `sudo systemctl start restic-backups-webdav.service`; journal shows
       success.
-- [ ] LibreWolf `about:support` → `HARDWARE_VIDEO_DECODING = available`.
 - [ ] Password-vault LibreWolf extension: paste server URL, log in with your
       vault account, unlock with the challenge password on first launch
       (one-time, manual).
@@ -424,43 +291,7 @@ sudo systemd-cryptenroll /dev/nvme0n1p2                      # slot 0 (password)
 
 ---
 
-## Operations reference (keep post-install)
-
-### Rebuild
-- Preferred: `cd ~/git/dotfiles && sudo nixos-rebuild switch --flake .#astoria`
-- Via /etc/nixos symlink: `sudo nixos-rebuild switch --flake /etc/nixos#astoria`
-- From dev machine over LAN: `nixos-rebuild switch --flake .#astoria --target-host brutcha@astoria --use-remote-sudo`
-
-### Update
-- Flake inputs: `nix flake update` (from dev machine, review lock diff, commit)
-- Firmware: `fwupdmgr refresh && fwupdmgr get-updates && fwupdmgr update`
-
-### Rollback
-
-Two independent rollback mechanisms — use the right one for the failure mode.
-
-**NixOS generation rollback** — for reverting a `nixos-rebuild switch` that broke
-something:
-- Lanzaboote boot menu at boot → pick a previous generation
-- Or from CLI (still-booted system): `sudo nixos-rebuild switch --rollback`
-
-**Snapper rootfs rollback** — for reverting non-`/nix/store` drift (files edited
-outside the flake, corrupted state under `/etc`, `/var`, `/home`). Snapshots live
-under `/.snapshots/<N>/snapshot` and are created at every boot by `snapper-boot.service`:
-```bash
-sudo snapper -c root list                           # inspect snapshots + timestamps
-sudo snapper -c root diff <N>..<M>                  # peek at what would change
-sudo snapper -c root undochange <N>..0 <path>       # restore <path> from snapshot N
-sudo snapper -c root rollback <N>                   # nuke current @root, replace with snapshot N — reboots into it
-```
-`snapper rollback` is destructive to the current @root (it swaps subvolumes); prefer
-`undochange` for targeted recovery when only a few files are affected.
-
-Note: Snapper's SUBVOLUME is `/` (targets @root only). `/nix`, `/home`, `/.snapshots`
-are separate subvolumes and NOT covered — `/nix/store` is already immutable +
-content-addressed; `/home` is user data that Restic backs up.
-
-### Restore from backup
+## Restore from backup
 - Secrets already materialized on running astoria: `/run/secrets/rclone/webdav.conf`
   + `/run/secrets/restic/repo-password`
 - `sudo nix-shell -p restic rclone` — enters an interactive root shell with restic +
@@ -481,14 +312,14 @@ content-addressed; `/home` is user data that Restic backs up.
     restic -r rclone:webdav:restic-astoria restore latest --target /
   ```
 
-### Password recovery (lost sudo password — machine still boots)
+## Password recovery (lost sudo password — machine still boots)
 1. From a machine that has the recovery age key: `sops hosts/astoria/secrets/astoria.yaml`
    — replace `users.brutcha.hashed-password` with a new `mkpasswd -m yescrypt` hash.
    Commit + push.
 2. On astoria: `sudo nixos-rebuild switch` (or `--target-host` from dev machine if
    stuck at greetd).
 
-### Password recovery (fully bricked — installer rescue)
+## Password recovery (fully bricked — installer rescue)
 1. Boot NixOS installer USB.
 2. `sudo cryptsetup luksOpen /dev/nvme0n1p3 cryptroot`   # p3 = root; p2 = swap
 3. `sudo mount -o subvol=@root /dev/mapper/cryptroot /mnt`
@@ -499,10 +330,10 @@ content-addressed; `/home` is user data that Restic backs up.
 8. Do NOT `passwd brutcha` — `users.mutableUsers = false;` reverts it. Update sops
    YAML from a trusted machine and rebuild.
 
-### Recovery age key — helper-device shred discipline
+## Recovery age key — helper-device shred discipline
 
 The recovery age private key lives in your password vault. Any time you paste it out
-of the vault onto a helper device to run `sops`, mirror Phase 1's shred discipline:
+of the vault onto a helper device to run `sops`, follow this discipline:
 
 1. On the helper device, mount a scratch tmpfs first:
    - Linux: `SCRATCH=$(mktemp -d --tmpdir=/dev/shm astoria-recovery.XXXXX)`
@@ -522,7 +353,7 @@ of the vault onto a helper device to run `sops`, mirror Phase 1's shred discipli
    `tmutil listlocalsnapshots /` doesn't show a recent snapshot containing the file
    (they roll off in ~24h; force-delete with `tmutil deletelocalsnapshots`).
 
-### LUKS passphrase change
+## LUKS passphrase change
 ```bash
 sudo cryptsetup luksChangeKey /dev/nvme0n1p3   # cryptroot — also update `"astoria login"` in the vault
 sudo cryptsetup luksChangeKey /dev/nvme0n1p2   # cryptswap fallback — also update its vault entry
@@ -531,7 +362,7 @@ The cryptswap TPM keyslot is separate from the passphrase keyslot; changing the
 passphrase does NOT invalidate the TPM binding. Rotate TPM enrollment only if you
 need to (BIOS updates, PCR changes).
 
-### TPM re-enrollment (after BIOS/firmware update — expected ~1-2× per year)
+## TPM re-enrollment (after BIOS/firmware update — expected ~1-2× per year)
 
 Symptoms: first boot after a BIOS update prompts for the cryptswap passphrase
 (fallback path) instead of TPM auto-unlock. `journalctl -b -u 'systemd-cryptsetup@luks\x2dswap.service'`
@@ -544,7 +375,7 @@ sudo systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=0+2+7 /dev/nvme0n1p2
 ```
 Prompted for the cryptswap passphrase to authorize. Reboot to verify silent unlock.
 
-### Secure Boot state audit (occasional)
+## Secure Boot state audit (occasional)
 ```bash
 sudo sbctl status              # Setup Mode: Disabled, Secure Boot: Enabled
 sudo sbctl verify              # every EFI file: Signed
@@ -553,7 +384,7 @@ bootctl status | grep 'Secure'
 If `sbctl verify` shows unsigned files after a manual bootloader tweak:
 `sudo sbctl sign -s <path>` per file, then `sudo nixos-rebuild switch`.
 
-### Full Secure Boot reset (rare — if keys get corrupted or you need to re-provision)
+## Full Secure Boot reset (rare — if keys get corrupted or you need to re-provision)
 
 1. Reboot into BIOS. Advanced Boot Options → Secure Boot → "Reset to Setup Mode" (or
    "Delete All Keys").
@@ -573,12 +404,11 @@ If `sbctl verify` shows unsigned files after a manual bootloader tweak:
 7. Reboot into BIOS → enable Secure Boot.
 8. **TPM state also invalidates** (PCR 7 changes): follow "TPM re-enrollment" above.
 
-### Battery care
+## Battery care
 Charge thresholds 60/80 via TLP. Check with `tlp-stat -b`. Battery replacement
 (~€60, iFixit rating 4/10) recommended if capacity drops below 60 %.
 
-### Known gotchas
-- Wi-Fi tuning assumes AX201 — see `hardware.nix` comments for QCA6390 variant.
+## Known gotchas
 - iwlwifi power_save must stay off — turning it on drops Moonlight streams.
 - `enhanced-h264ify` blocks AV1 on YouTube while leaving VP9 available; keeps
   4K/1440p playback that plain `h264ify` would silently drop.
@@ -592,9 +422,6 @@ Charge thresholds 60/80 via TLP. Check with `tlp-stat -b`. Battery replacement
 - The password-vault LibreWolf extension is declaratively installed but not
   configured — set server URL, log in with your vault account, unlock with the
   challenge password on first launch (manual, one-time).
-- `PLATFORM_PROFILE_ON_BAT` in TLP may be a silent no-op if
-  `/sys/firmware/acpi/platform_profile_choices` is empty on this SKU —
-  verify-hardware.sh reports this; TLP tolerates.
 - **If suspend-then-hibernate fails to wake at the scheduled time**: ADD
   `rtc_cmos.use_acpi_alarm=1` to `boot.kernelParams`. Kernel auto-quirks the ACPI
   SCI alarm path deterministically on Intel + BIOS≥2015 + HPET-on (XPS 13 9300 hits
@@ -606,7 +433,28 @@ Charge thresholds 60/80 via TLP. Check with `tlp-stat -b`. Battery replacement
 - **`sbctl verify` shows unsigned files**: something touched the ESP outside
   `nixos-rebuild switch`. `sudo sbctl sign -s <path>` and rebuild; check the ESP
   wasn't manually edited.
-- **Cannot enter Secure Boot Setup Mode from BIOS**: some Dell BIOSes require an
-  admin password to be set before Setup Mode is reachable. Set one first if BIOS
-  refuses; reset SB to Setup Mode; then UNSET the admin password (TLP charge
-  thresholds require it UNSET).
+- **Dell Expert Key Management: "Reset All Keys" vs "Delete All Keys"** — these
+  are two similarly-labeled, opposite actions. **Reset All Keys** restores
+  factory Microsoft/OEM keys (NOT what you want here). **Delete All Keys**
+  clears everything and enters Setup Mode (correct). Also: the page's "N
+  changes were made" counter does NOT track Delete All Keys — it's an
+  immediate action, not a queued setting. Trust `sbctl status` after
+  rebooting, not the counter. Also: enabling Secure Boot while the firmware
+  has no PK enrolled (Setup Mode + SB on simultaneously) can produce a "no
+  bootable devices" SupportAssist screen on some BIOS revisions — leave SB
+  off through key deletion + enrollment, and only re-enable it last, once
+  `sbctl enroll-keys` has succeeded.
+
+## References
+
+- [NixOS](https://nixos.org)
+- [home-manager](https://github.com/nix-community/home-manager)
+- [sops-nix](https://github.com/Mic92/sops-nix)
+- [disko](https://github.com/nix-community/disko)
+- [lanzaboote](https://github.com/nix-community/lanzaboote)
+- [snapper](https://github.com/openSUSE/snapper)
+- [TLP](https://linrunner.de/tlp/)
+- [sbctl](https://github.com/Foxboron/sbctl)
+- [nix-community/nixos-images](https://github.com/nix-community/nixos-images)
+- [Moonlight](https://moonlight-stream.org)
+- [LibreWolf](https://librewolf.net)

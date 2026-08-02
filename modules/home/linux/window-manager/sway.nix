@@ -20,6 +20,16 @@ in
     lib.mkEnableOption "Sway window manager (user-level config)";
 
   config = lib.mkIf cfg.enable {
+    home.pointerCursor = {
+      enable = true;
+      package = pkgs.capitaine-cursors;
+      name = "capitaine-cursors";
+      size = 24;
+      gtk.enable = true;
+      x11.enable = true;
+      sway.enable = true;
+    };
+
     wayland.windowManager.sway = {
       enable = true;
       wrapperFeatures.gtk = true;
@@ -28,6 +38,11 @@ in
         modifier = "Mod4";
         terminal = "ghostty";
         menu = "fuzzel";
+        bars = [ ];
+
+        window.titlebar = false;
+        floating.titlebar = false;
+        gaps.smartBorders = "on";
 
         output."eDP-1" = {
           mode = "3840x2400@60Hz";
@@ -45,10 +60,10 @@ in
         };
 
         keybindings = let mod = modifier; in {
-          "${mod}+Return"       = "exec ${terminal}";
-          "${mod}+space"        = "exec ${menu}";
-          "${mod}+w"            = "kill";
-          "${mod}+Shift+e"      = "exit";
+          "${mod}+Return" = "exec ${terminal}";
+          "${mod}+space" = "exec ${menu}";
+          "${mod}+w" = "kill";
+          "${mod}+Shift+e" = "exit";
 
           "${mod}+h" = "focus left";
           "${mod}+j" = "focus down";
@@ -72,17 +87,20 @@ in
           "${mod}+Ctrl+4" = "move container to workspace number 4";
           "${mod}+Ctrl+5" = "move container to workspace number 5";
 
-          "${mod}+e"           = "layout toggle split";
-          "${mod}+f"           = "fullscreen";
+          "${mod}+e" = "layout toggle split";
+          "${mod}+f" = "fullscreen";
           "${mod}+Shift+space" = "floating toggle";
 
-          "XF86MonBrightnessUp"   = "exec brightnessctl set +5%";
+          "XF86MonBrightnessUp" = "exec brightnessctl set +5%";
           "XF86MonBrightnessDown" = "exec brightnessctl set 5%-";
-          "XF86AudioRaiseVolume"  = "exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+";
-          "XF86AudioLowerVolume"  = "exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-";
-          "XF86AudioMute"         = "exec wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle";
+          "XF86AudioRaiseVolume" = "exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+";
+          "XF86AudioLowerVolume" = "exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-";
+          "XF86AudioMute" = "exec wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle";
 
           "${mod}+Escape" = "exec swaylock";
+
+          "Print" = "exec screenshot-region";
+          "Shift+Print" = "exec screenshot-full";
         };
 
         # Polkit auth agent — the system-level `security.polkit.enable`
@@ -92,10 +110,10 @@ in
         ];
 
         colors = let c = config.theme.dark; in {
-          focused         = { border = c.blue;    background = c.bg; text = c.fg;      indicator = c.blue;    childBorder = c.blue; };
+          focused = { border = c.blue; background = c.bg; text = c.fg; indicator = c.blue; childBorder = c.blue; };
           focusedInactive = { border = c.bg_dark; background = c.bg; text = c.fg_dark; indicator = c.bg_dark; childBorder = c.bg_dark; };
-          unfocused       = { border = c.bg_dark; background = c.bg; text = c.comment; indicator = c.bg_dark; childBorder = c.bg_dark; };
-          urgent          = { border = c.red;     background = c.red; text = c.fg;    indicator = c.red;     childBorder = c.red; };
+          unfocused = { border = c.bg_dark; background = c.bg; text = c.comment; indicator = c.bg_dark; childBorder = c.bg_dark; };
+          urgent = { border = c.red; background = c.red; text = c.fg; indicator = c.red; childBorder = c.red; };
         };
 
         fonts = {
@@ -105,6 +123,8 @@ in
       };
 
       extraConfig = ''
+        seat seat0 xcursor_theme capitaine-cursors 24
+
         exec swayidle -w \
           timeout 180 'brightnessctl -s set 20%' resume 'brightnessctl -r' \
           timeout 300 'swaylock -f' \

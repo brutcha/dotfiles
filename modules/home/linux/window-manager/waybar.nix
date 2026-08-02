@@ -38,28 +38,29 @@ in
         tray = { spacing = 10; };
 
         clock = {
-          format = "{:%a %d %b  %H:%M}";
+          format = "<span weight='bold'></span> {:%a %d %b  %H:%M}";
           tooltip-format = "<big>{:%Y-%m-%d}</big>\n<tt>{calendar}</tt>";
         };
 
         battery = {
-          format = "{capacity}% {icon}";
-          format-icons = [ "" "" "" "" "" ];
-          format-charging = "{capacity}% ";
+          format = "<span weight='bold'>{icon}</span> {capacity}%";
+          format-icons = [ "󰂎" "󰁻" "󰁾" "󰂀" "󰂂" ];
+          format-charging = "<span weight='bold'>󰂄</span> {capacity}%";
           states = { warning = 30; critical = 15; };
         };
 
         network = {
-          format-wifi = "{essid} ({signalStrength}%) ";
-          format-ethernet = "{ifname} ";
-          format-disconnected = "disconnected ⚠";
+          format-wifi = "<span weight='bold'>󰤨</span> {essid} ({signalStrength}%)";
+          format-ethernet = "<span weight='bold'>󰈀</span> {ifname}";
+          format-disconnected = "<span weight='bold'>󰌙</span> disconnected";
           tooltip-format = "{ifname}: {ipaddr}/{cidr}";
+          on-click = "${pkgs.ghostty}/bin/ghostty --command=nmtui";
         };
 
         pulseaudio = {
-          format = "{volume}% {icon}";
-          format-muted = "muted ";
-          format-icons = { default = [ "" "" "" ]; };
+          format = "<span weight='bold'>{icon}</span> {volume}%";
+          format-muted = "<span weight='bold'>󰖁</span> muted";
+          format-icons = { default = [ "󰕿" "󰖀" "󰕾" ]; };
           on-click = "${pkgs.pavucontrol}/bin/pavucontrol";
         };
       };
@@ -78,24 +79,34 @@ in
           color: ${c.fg};
         }
 
+        #workspaces {
+          margin: 4px 6px;
+        }
         #workspaces button {
-          padding: 0 8px;
-          color: ${c.fg_dark};
-          background: transparent;
-          border-bottom: 2px solid transparent;
+          padding: 0;
+          margin: 2px 4px;
+          font-weight: bold;
+          color: alpha(${c.fg}, 0.53);
+          background: alpha(${c.blue}, 0.2);
+          border-radius: 6px;
         }
         #workspaces button.focused {
-          color: ${c.fg};
-          border-bottom: 2px solid ${c.blue};
+          color: ${c.black};
+          background: ${c.purple};
         }
         #workspaces button.urgent {
-          color: ${c.red};
-          border-bottom: 2px solid ${c.red};
+          color: ${c.fg};
+          background: ${c.red};
         }
 
         #clock, #battery, #network, #pulseaudio, #tray, #mode {
           padding: 0 10px;
           color: ${c.fg};
+        }
+
+        #network:hover, #pulseaudio:hover {
+          background: ${c.bg_highlight};
+          border-radius: 6px;
         }
 
         #battery.warning  { color: ${c.orange}; }

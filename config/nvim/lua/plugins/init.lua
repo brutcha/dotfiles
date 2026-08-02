@@ -44,7 +44,7 @@ return {
     "nvim-treesitter/nvim-treesitter",
     priority = 52,
     build = function()
-      require("nvim-treesitter.install").update({ with_sync = true })()
+      require("nvim-treesitter.install").update({ with_sync = true })
     end,
   },
   {

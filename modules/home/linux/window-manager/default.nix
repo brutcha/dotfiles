@@ -8,5 +8,6 @@
     ./mako.nix
     ./fuzzel.nix
     ./swaylock.nix
+    ./screenshot.nix
   ];
 }

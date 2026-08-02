@@ -3,8 +3,8 @@
 # astoria — home-manager entry for `brutcha`.
 #
 # Toggles the fleet-standard `home.apps.*` options; modules/home/default.nix
-# picks the linux sub-bundle (sway/waybar/mako/fuzzel/swaylock/thunar/
-# librewolf/moonlight) via `hostSystem`.
+# picks the linux sub-bundle (sway/waybar/mako/fuzzel/swaylock/screenshot/
+# thunar/librewolf/moonlight/imv) via `hostSystem`.
 #
 {
   imports = [ ../../modules/home ];
@@ -12,17 +12,20 @@
   home.apps = {
     development = {
       ghostty.enable = true;
-      git.enable     = true;        # lazygit.enable auto-derives
+      git.enable     = true;
+      claude-code.enable = true;
     };
     internet.librewolf.enable = true;
     media.moonlight.enable    = true;
+    media.imv.enable          = true;
     filemanager.thunar.enable = true;
     windowManager = {
-      sway.enable     = true;
-      waybar.enable   = true;
-      mako.enable     = true;
-      fuzzel.enable   = true;
-      swaylock.enable = true;
+      sway.enable       = true;
+      waybar.enable     = true;
+      mako.enable       = true;
+      fuzzel.enable     = true;
+      swaylock.enable   = true;
+      screenshot.enable = true;
     };
   };
 
@@ -47,7 +50,21 @@
     };
     iconTheme   = { name = "Papirus-Dark";      package = pkgs.papirus-icon-theme; };
     cursorTheme = { name = "Bibata-Modern-Ice"; package = pkgs.bibata-cursors; };
+    # Matches the Nerd Font used across sway/waybar/mako/fuzzel (fonts.nix
+    # installs the package already) — GTK chrome font, so LibreWolf's
+    # address bar/tabs and other GTK apps' UI text follow it too.
+    font = { name = "JetBrainsMonoNL Nerd Font"; size = 10; };
     gtk3.extraConfig.gtk-application-prefer-dark-theme = 1;
+  };
+
+  # Portal-facing appearance signal (org.freedesktop.appearance
+  # color-scheme). xdg-desktop-portal-gtk reads this via gsettings/dconf —
+  # it's what Ghostty's dark:/light: auto-theme and LibreWolf's
+  # prefers-color-scheme detection actually consult on Wayland, unlike the
+  # GTK3-only setting above. Static "prefer-dark", matching the static
+  # Tokyonight-Dark GTK theme choice (no day/night auto-switch here).
+  dconf.settings."org/gnome/desktop/interface" = {
+    color-scheme = "prefer-dark";
   };
 
   # File-sync client. Server URL + creds set on first launch.

@@ -17,7 +17,7 @@
   ];
 
   # --- Bootloader (Lanzaboote / Secure Boot) ---
-  # Two-step key lifecycle (README Phase 3 step 5 + Phase 4b step 2):
+  # Two-step key lifecycle (README Phase 3 step 4 + Phase 4b step 2):
   # `sbctl create-keys` at install time → local keypair under pkiBundle;
   # `sbctl enroll-keys --microsoft` at first boot → enroll into UEFI while
   # in Setup Mode. --microsoft appends MS certs to KEK+db only (PK stays
@@ -64,9 +64,7 @@
     crypttabExtraOpts = [ "tpm2-device=auto" ];
   };
 
-  # --- Wi-Fi (AX201-specific tuning) ---
-  # Alternative SKU: QCA6390 (ath11k). Drop the iwlwifi modprobe block if
-  # `lspci -k` reveals it; NM powersave = false applies either way.
+  # --- Wi-Fi (AX201 iwlwifi tuning, confirmed via lspci -nn / dmesg) ---
   boot.extraModprobeConfig = ''
     options iwlwifi power_save=0
   '';
@@ -92,6 +90,7 @@
       CPU_ENERGY_PERF_POLICY_ON_BAT = "power";
       CPU_ENERGY_PERF_POLICY_ON_AC  = "balance_performance";
       CPU_BOOST_ON_BAT              = 0;
+      CPU_BOOST_ON_AC               = 1;
       CPU_HWP_DYN_BOOST_ON_BAT      = 0;
       # Silent no-op if /sys/firmware/acpi/platform_profile_choices is empty
       # (verify-hardware.sh reports).

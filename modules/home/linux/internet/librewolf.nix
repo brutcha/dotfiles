@@ -27,7 +27,21 @@ in
     programs.librewolf = {
       enable = true;
       profiles.default = {
-        settings."extensions.autoDisableScopes" = 0;
+        settings = {
+          "extensions.autoDisableScopes" = 0;
+          "privacy.clearOnShutdown_v2.cookiesAndStorage" = false;
+          "privacy.clearOnShutdown_v2.cache" = false;
+          # resistFingerprinting forces prefers-color-scheme to "light" for
+          # all sites; fingerprintingProtection covers everything else RFP
+          # did except that, so sites see the real dark/light preference.
+          "privacy.resistFingerprinting" = false;
+          "privacy.fingerprintingProtection" = true;
+          "privacy.fingerprintingProtection.overrides" = "+AllTargets,-CSSPrefersColorScheme";
+          "sidebar.revamp" = true;
+          "sidebar.verticalTabs" = true;
+          "sidebar.position_start" = false;
+        };
+
         extensions.packages = with pkgs.nur.repos.rycee.firefox-addons; [
           enhanced-h264ify
           nextcloud-passwords

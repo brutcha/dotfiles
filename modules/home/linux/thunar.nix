@@ -17,9 +17,9 @@ in
 
   config = lib.mkIf cfg.enable {
     home.packages = with pkgs; [
-      xfce.thunar
-      xfce.thunar-volman
-      xfce.thunar-archive-plugin
+      thunar
+      thunar-volman
+      thunar-archive-plugin
     ];
   };
 }
