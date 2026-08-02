@@ -95,7 +95,7 @@
       CPU_HWP_DYN_BOOST_ON_BAT      = 0;
       # Silent no-op if /sys/firmware/acpi/platform_profile_choices is empty
       # (verify-hardware.sh reports).
-      PLATFORM_PROFILE_ON_BAT       = "low-power";
+      PLATFORM_PROFILE_ON_BAT       = "cool";
       INTEL_GPU_MIN_FREQ_ON_BAT     = 100;
       INTEL_GPU_MAX_FREQ_ON_BAT     = 750;
       RUNTIME_PM_ON_BAT             = "auto";
