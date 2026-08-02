@@ -65,7 +65,7 @@
     wlr.enable = true;
     extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
     config = {
-      sway.default   = [ "wlr" "gtk" ];
+      sway.default   = lib.mkForce [ "wlr" "gtk" ];
       common.default = [ "wlr" "gtk" ];
     };
   };
