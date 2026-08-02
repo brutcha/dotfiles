@@ -95,7 +95,7 @@
       configuration = { pkgs, ... }: {
         # Enable flakes support globally to use nix flake commands
         # https://github.com/NixOS/nix/blob/master/doc/manual/rl-next.md
-        nix.settings.experimental-features = "nix-command flakes";
+        nix.settings.experimental-features = ["nix-command" "flakes"];
 
         # Flake-only setup — drop the legacy channels path from NIX_PATH
         # (silences "Nix search path entry .../channels does not exist").
