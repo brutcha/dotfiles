@@ -29,9 +29,8 @@ in
         credential = {
           helper = "manager";
         } // lib.optionalAttrs pkgs.stdenv.isLinux {
-          # GCM needs an explicit store on Linux (no single obvious default,
-          # unlike macOS Keychain). gnome-keyring's Secret Service is already
-          # enabled system-wide (services.gnome.gnome-keyring.enable).
+          # GCM needs an explicit credential store on Linux; gnome-keyring's
+          # Secret Service is already enabled system-wide.
           credentialStore = "secretservice";
         };
       };

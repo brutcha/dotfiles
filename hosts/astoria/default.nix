@@ -70,12 +70,8 @@
       common.default = [ "wlr" "gtk" ];
     };
   };
-  # dconf/D-Bus service — xdg-desktop-portal-gtk's Settings backend (above)
-  # answers org.freedesktop.appearance queries by reading gsettings, which
-  # is backed by dconf. Without this, apps that query the portal for
-  # color-scheme (Ghostty, LibreWolf) never see a preference and fall back
-  # to light, even with gtk-application-prefer-dark-theme set (that ini
-  # setting only affects GTK3 apps' own rendering, not the portal signal).
+  # Backs the portal's color-scheme signal (Ghostty/LibreWolf dark mode) —
+  # gtk-application-prefer-dark-theme alone doesn't reach it.
   programs.dconf.enable = true;
   security.polkit.enable = true;
 

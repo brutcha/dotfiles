@@ -50,19 +50,13 @@
     };
     iconTheme   = { name = "Papirus-Dark";      package = pkgs.papirus-icon-theme; };
     cursorTheme = { name = "Bibata-Modern-Ice"; package = pkgs.bibata-cursors; };
-    # Matches the Nerd Font used across sway/waybar/mako/fuzzel (fonts.nix
-    # installs the package already) — GTK chrome font, so LibreWolf's
-    # address bar/tabs and other GTK apps' UI text follow it too.
+    # Matches the Nerd Font used across sway/waybar/mako/fuzzel.
     font = { name = "JetBrainsMonoNL Nerd Font"; size = 10; };
     gtk3.extraConfig.gtk-application-prefer-dark-theme = 1;
   };
 
-  # Portal-facing appearance signal (org.freedesktop.appearance
-  # color-scheme). xdg-desktop-portal-gtk reads this via gsettings/dconf —
-  # it's what Ghostty's dark:/light: auto-theme and LibreWolf's
-  # prefers-color-scheme detection actually consult on Wayland, unlike the
-  # GTK3-only setting above. Static "prefer-dark", matching the static
-  # Tokyonight-Dark GTK theme choice (no day/night auto-switch here).
+  # Portal color-scheme signal — what Ghostty/LibreWolf actually consult
+  # for dark mode on Wayland, unlike the GTK3-only setting above.
   dconf.settings."org/gnome/desktop/interface" = {
     color-scheme = "prefer-dark";
   };

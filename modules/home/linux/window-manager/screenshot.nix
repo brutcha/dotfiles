@@ -1,8 +1,7 @@
 { config, lib, pkgs, ... }:
 #
-# Screenshots — grim (capture) + slurp (region select) + swappy (annotate).
-# Sway-native via wlr-screencopy; spectacle/flameshot don't target wlroots
-# compositors well.
+# Screenshots — grim/slurp/swappy; not spectacle/flameshot (don't target
+# wlroots well).
 #
 # Available options:
 # - home.apps.windowManager.screenshot.enable
@@ -18,7 +17,10 @@ in
     home.packages = [
       # Region select, opens swappy for annotate/save/copy.
       (pkgs.writeShellScriptBin "screenshot-region" ''
-        exec ${pkgs.grim}/bin/grim -g "$(${pkgs.slurp}/bin/slurp)" - | ${pkgs.swappy}/bin/swappy -f -
+        set -euo pipefail
+        geometry="$(${pkgs.slurp}/bin/slurp)" || exit 0
+        [ -n "$geometry" ] || exit 0
+        exec ${pkgs.grim}/bin/grim -g "$geometry" - | ${pkgs.swappy}/bin/swappy -f -
       '')
       # Full screen, saved straight to disk + clipboard, no editor.
       (pkgs.writeShellScriptBin "screenshot-full" ''
