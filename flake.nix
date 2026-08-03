@@ -91,6 +91,10 @@
       # `utils` — NixOS's module framework injects its own internal `utils` arg.
       helpers = import ./modules/lib/default.nix { lib = nixpkgs.lib; };
 
+      # Darwin host-wiring helpers (module-list and pkgs builders used by
+      # darwinConfigurations.* below) — see modules/lib/darwin-hosts.nix
+      darwinHosts = import ./modules/lib/darwin-hosts.nix { lib = nixpkgs.lib; };
+
       # Base configuration shared across all systems
       # Enables flakes and sets up fundamental packages
       configuration = { pkgs, ... }: {
@@ -136,81 +140,6 @@
       # into the project's own .gitignore. See dev-shells/default.nix for
       # the full mechanism, inheritance rules, and future privacy options.
 
-      # Helper function to create home-manager configuration for a user (darwin)
-      # Creates a module list that integrates home-manager with the system configuration
-      # and imports user-specific settings from hosts/${hostname}/home.nix
-      mkHomeConfig = { username, hostname, home, system, private ? null }: [
-        home-manager.darwinModules.home-manager
-        {
-          # Set the user's home directory path
-          users.users.${username}.home = nixpkgs.lib.mkDefault home;
-
-          # Use the system's nixpkgs instance for home-manager
-          home-manager.useGlobalPkgs = true;
-          # Install user packages to /etc/profiles instead of ~/.nix-profile.
-          # `private` is always present (null on hosts without one) so modules
-          # can pattern-match on it without triggering _module.args recursion.
-          #
-          # `hostSystem` is the Nix system string ("aarch64-darwin",
-          # "x86_64-linux", ...). Threaded via specialArgs so modules/home
-          # can decide platform sub-bundle imports (see modules/home/default.nix)
-          # without depending on `pkgs.stdenv.hostPlatform.*` at import-list
-          # eval time — that route hits `_module.args`->`config` recursion
-          # because pkgs isn't externally provided to HM's inner modules.
-          home-manager.extraSpecialArgs = {
-            inherit inputs private;
-            hostSystem = system;
-            rootDir = self;
-            helpers = helpers;
-          };
-
-          home-manager.useUserPackages = true;
-
-          # When a file home-manager wants to manage already exists (e.g.
-          # KeePassXC writes its own keepassxc.ini before we declare it),
-          # move the existing file to `<name>.backup` instead of aborting.
-          home-manager.backupFileExtension = "backup";
-
-          home-manager.users.${username} = {
-            home.username = username;
-
-            imports = [
-              ./hosts/${hostname}/home.nix
-            ];
-          };
-        }
-      ];
-
-      # Helper function to create nix-homebrew configuration for a user
-      # Creates a module list that integrates nix-homebrew with the system configuration
-      # nix-homebrew manages Homebrew installation itself, while nix-darwin's homebrew
-      # module manages packages declaratively.
-      #
-      # Parameters:
-      # - username: The user who owns the Homebrew installation
-      # - taps: Optional attribute set of Homebrew taps to manage declaratively
-      # - autoMigrate: Whether to automatically migrate existing Homebrew installations
-      #
-      # Homebrew integration approach:
-      # - Uses nix-homebrew to manage Homebrew installation itself
-      # - Uses nix-darwin's homebrew.* options to manage packages declaratively
-      # - Works with existing Homebrew installations via autoMigrate
-      mkHomebrewConfig = { username, taps ? { }, autoMigrate ? true }: [
-        nix-homebrew.darwinModules.nix-homebrew
-        {
-          # Set the primary user for nix-darwin
-          system.primaryUser = username;
-
-          nix-homebrew = {
-            enable = true;
-            enableRosetta = true;
-            user = username;
-            taps = taps;
-            mutableTaps = true;
-            autoMigrate = autoMigrate;
-          };
-        }
-      ];
     in
     {
       # Re-export disko's CLI at the flake's own package output so the
@@ -230,16 +159,7 @@
           # (nix's pathExists under sudo is unreliable; let `import` fail with a
           # clearer file-not-found message if the file is missing)
           private = import "/Users/${username}/.config/dotfiles/private.nix";
-          pkgs = import nixpkgs {
-            inherit system;
-            config = { allowUnfree = true; };
-            overlays = [
-              (final: prev: {
-                fish = prev.fish.overrideAttrs (old: { doCheck = false; });
-              })
-              (import ./pkgs { inherit helpers; })
-            ];
-          };
+          pkgs = darwinHosts.mkDarwinPkgs { inherit nixpkgs system helpers rootDir; };
           rootDir = self;
         in
         nix-darwin.lib.darwinSystem {
@@ -249,11 +169,12 @@
           modules = [
             configuration
             ./hosts/${hostname}/default.nix
-          ] ++ mkHomeConfig {
+          ] ++ darwinHosts.mkHomeConfig {
+            inherit home-manager inputs rootDir helpers;
             inherit username hostname private system;
             home = "/Users/${username}";
-          } ++ mkHomebrewConfig {
-            inherit username;
+          } ++ darwinHosts.mkHomebrewConfig {
+            inherit nix-homebrew username;
             autoMigrate = true;
           };
         };
@@ -271,20 +192,7 @@
           # (nix's pathExists under sudo is unreliable; let `import` fail with a
           # clearer file-not-found message if the file is missing)
           private = import "/Users/${username}/.config/dotfiles/private.nix";
-          pkgs = import nixpkgs {
-            inherit system;
-            config = {
-              allowUnfree = true;
-            };
-            overlays = [
-              (final: prev: {
-                fish = prev.fish.overrideAttrs (old: {
-                  doCheck = false;
-                });
-              })
-              (import ./pkgs { inherit helpers; })
-            ];
-          };
+          pkgs = darwinHosts.mkDarwinPkgs { inherit nixpkgs system helpers rootDir; };
           rootDir = self;
         in
         nix-darwin.lib.darwinSystem {
@@ -295,11 +203,12 @@
           modules = [
             configuration
             ./hosts/${hostname}/default.nix
-          ] ++ mkHomeConfig {
+          ] ++ darwinHosts.mkHomeConfig {
+            inherit home-manager inputs rootDir helpers;
             inherit username hostname private system;
             home = "/Users/${username}";
-          } ++ mkHomebrewConfig {
-            inherit username;
+          } ++ darwinHosts.mkHomebrewConfig {
+            inherit nix-homebrew username;
             autoMigrate = true;
           };
         };
