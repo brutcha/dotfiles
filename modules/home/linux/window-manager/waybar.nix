@@ -33,6 +33,13 @@ in
         "sway/workspaces" = {
           disable-scroll = true;
           all-outputs = true;
+          persistent-workspaces = {
+            "1" = [ ];
+            "2" = [ ];
+            "3" = [ ];
+            "4" = [ ];
+            "5" = [ ];
+          };
         };
 
         "sway/language" = {
@@ -93,6 +100,10 @@ in
           color: alpha(${c.fg}, 0.53);
           background: alpha(${c.blue}, 0.2);
           border-radius: 6px;
+        }
+        #workspaces button.empty {
+          color: alpha(${c.fg}, 0.3);
+          background: ${c.bg_dark};
         }
         #workspaces button.focused {
           color: ${c.black};

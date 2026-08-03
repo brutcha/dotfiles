@@ -115,7 +115,9 @@ in
 
           "${mod}+1" = "workspace number 1";
           "${mod}+2" = "workspace number 2";
-          "${mod}+3" = "workspace number 3";
+          # `pgrep -x moonlight` doesn't work here: the persistent process's comm
+          # is `.moonlight-wrap` (a truncated Nix wrapper name)
+          "${mod}+3" = ''exec "swaymsg -t get_tree | grep -q com.moonlight_stream.Moonlight || moonlight"; workspace number 3'';
           "${mod}+4" = "workspace number 4";
           "${mod}+5" = "workspace number 5";
 
@@ -139,10 +141,20 @@ in
           "Shift+Print" = "exec screenshot-full";
         };
 
-        # Polkit auth agent — the system-level `security.polkit.enable`
-        # counterpart lives in the host default.nix.
         startup = [
           { command = "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1"; }
+        ];
+
+        assigns = {
+          "1" = [ { app_id = "librewolf"; } ];
+          "2" = [ { app_id = "com.mitchellh.ghostty"; } ];
+          "3" = [ { app_id = "com.moonlight_stream.Moonlight"; } ];
+        };
+
+        window.commands = [
+          { command = "focus"; criteria = { app_id = "librewolf"; }; }
+          { command = "focus"; criteria = { app_id = "com.mitchellh.ghostty"; }; }
+          { command = "focus"; criteria = { app_id = "com.moonlight_stream.Moonlight"; }; }
         ];
 
         colors = let c = config.theme.dark; in {
