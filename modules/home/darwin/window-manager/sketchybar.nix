@@ -1,4 +1,4 @@
-{ pkgs, config, lib, utils, ... }:
+{ pkgs, config, lib, helpers, ... }:
 #
 # SketchyBar — status bar for macOS, AeroSpace-integrated (Tokyo Night)
 # https://felixkratz.github.io/SketchyBar/setup
@@ -43,7 +43,7 @@ in
     "sketchybar/colors.lua".text =
       let
         c = config.theme.dark;
-        toARGB = utils.colors.toARGB;
+        toARGB = helpers.colors.toARGB;
       in
       ''
         #!/usr/bin/env lua

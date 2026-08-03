@@ -1,4 +1,4 @@
-{ config, lib, pkgs, utils, ... }:
+{ config, lib, pkgs, helpers, ... }:
 #
 # JankyBorders — window borders (https://github.com/FelixKratz/JankyBorders)
 #
@@ -16,8 +16,8 @@ in
     services.jankyborders = {
       enable = true;
       settings = {
-        active_color = utils.colors.toARGB config.theme.dark.blue 1;
-        inactive_color = utils.colors.toARGB config.theme.dark.blue 0;
+        active_color = helpers.colors.toARGB config.theme.dark.blue 1;
+        inactive_color = helpers.colors.toARGB config.theme.dark.blue 0;
         width = 8.0;
       };
     };

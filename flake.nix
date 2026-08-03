@@ -87,8 +87,9 @@
 
   outputs = inputs@{ self, nix-darwin, home-manager, nix-homebrew, nixpkgs, ... }:
     let
-      # Custom utilities available globally as 'utils'
-      utils = import ./modules/lib/default.nix { lib = nixpkgs.lib; };
+      # Custom utilities available globally as 'helpers'. Must not be named
+      # `utils` — NixOS's module framework injects its own internal `utils` arg.
+      helpers = import ./modules/lib/default.nix { lib = nixpkgs.lib; };
 
       # Base configuration shared across all systems
       # Enables flakes and sets up fundamental packages
@@ -160,7 +161,7 @@
             inherit inputs private;
             hostSystem = system;
             rootDir = self;
-            utils = utils;
+            helpers = helpers;
           };
 
           home-manager.useUserPackages = true;
@@ -236,14 +237,14 @@
               (final: prev: {
                 fish = prev.fish.overrideAttrs (old: { doCheck = false; });
               })
-              (import ./pkgs { inherit utils; })
+              (import ./pkgs { inherit helpers; })
             ];
           };
           rootDir = self;
         in
         nix-darwin.lib.darwinSystem {
           inherit system;
-          specialArgs = { inherit utils pkgs rootDir private; };
+          specialArgs = { inherit helpers pkgs rootDir private; };
 
           modules = [
             configuration
@@ -281,15 +282,15 @@
                   doCheck = false;
                 });
               })
-              (import ./pkgs { inherit utils; })
+              (import ./pkgs { inherit helpers; })
             ];
           };
           rootDir = self;
         in
         nix-darwin.lib.darwinSystem {
           inherit system;
-          # Add utils to the nix flake specialArgs, make helpers like toARGB available in each module
-          specialArgs = { inherit utils pkgs rootDir private; };
+          # Add helpers to the nix flake specialArgs, make helpers like toARGB available in each module
+          specialArgs = { inherit helpers pkgs rootDir private; };
 
           modules = [
             configuration
@@ -325,20 +326,13 @@
         in
         nixpkgs.lib.nixosSystem {
           inherit system;
-          # NOTE: `utils` intentionally NOT in system specialArgs — NixOS's
-          # module framework injects its own `utils` (which carries
-          # `systemdUtils` used by nixos/modules/system/boot/systemd.nix); a
-          # user-supplied `utils` would shadow it and break systemd module
-          # eval with "undefined variable 'systemdUtils'". The custom `utils`
-          # from modules/lib/default.nix is still available to HM modules via
-          # extraSpecialArgs below (HM has no such internal `utils`).
-          specialArgs = { inherit inputs rootDir private; };
+          specialArgs = { inherit inputs rootDir private helpers; };
           modules = [
             configuration
             ./hosts/astoria/default.nix
             {
               home-manager.extraSpecialArgs = {
-                inherit inputs private rootDir utils;
+                inherit inputs private rootDir helpers;
                 hostSystem = system;
               };
             }

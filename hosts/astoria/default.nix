@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, ... }:
+{ config, pkgs, lib, inputs, helpers, ... }:
 #
 # astoria — Dell XPS 13 9300 NixOS thin-client. Sway sole session,
 # Moonlight-first, LibreWolf, greetd, no autologin.
@@ -16,7 +16,7 @@
   ];
 
   nixpkgs.config.allowUnfree = true;                # required by hardware.enableAllFirmware
-  nixpkgs.overlays = [ inputs.nur.overlays.default ];
+  nixpkgs.overlays = [ inputs.nur.overlays.default (import ../../pkgs { inherit helpers; }) ];
 
   networking.hostName = "astoria";
 

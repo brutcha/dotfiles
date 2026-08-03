@@ -1,4 +1,4 @@
-{ utils, lib, stdenv, fetchurl, appimageTools, makeWrapper }:
+{ helpers, lib, stdenv, fetchurl, appimageTools, makeWrapper }:
 #
 # Emdash — multi-agent dev environment (https://emdash.sh)
 #
@@ -15,7 +15,7 @@
 #     https://github.com/generalaction/emdash/releases/download/v<NEW>/emdash-x86_64.AppImage
 #
 let
-  cfg = utils.darwin;
+  cfg = helpers.darwin;
 in
 if stdenv.hostPlatform.isDarwin then
   cfg.mkBrewCask { caskName = "emdash"; }

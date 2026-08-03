@@ -20,56 +20,60 @@
 # - obs-studio: Screen recorder/streamer (brew cask on macOS — nixpkgs is Linux-only)
 # - keepassxc: Password manager (brew cask on macOS — sidesteps qtmacextras
 #   linker crash; Linux uses nixpkgs)
+# - tokyonight-gtk-theme: GTK theme (nixpkgs dropped it over a dead GTK2
+#   dependency the theme doesn't need — see pkgs/tokyonight-gtk-theme)
 #
 # This overlay is applied in flake.nix when creating the pkgs instance.
 #
-{ utils }:
+{ helpers }:
 final: prev: {
   keepassxc =
     if prev.stdenv.isDarwin
-    then prev.callPackage ./keepassxc { inherit utils; }
+    then prev.callPackage ./keepassxc { inherit helpers; }
     else prev.keepassxc;
 
   insync =
     if prev.stdenv.isDarwin
-    then prev.callPackage ./insync { inherit utils; }
+    then prev.callPackage ./insync { inherit helpers; }
     else prev.insync;
     
-  blurred = prev.callPackage ./blurred { inherit utils; };
+  blurred = prev.callPackage ./blurred { inherit helpers; };
   
-  docker-desktop = prev.callPackage ./docker-desktop { inherit utils; };
+  docker-desktop = prev.callPackage ./docker-desktop { inherit helpers; };
   
-  orbstack = prev.callPackage ./orbstack { inherit utils; };
+  orbstack = prev.callPackage ./orbstack { inherit helpers; };
 
   ungoogled-chromium =
     if prev.stdenv.isDarwin
-    then prev.callPackage ./ungoogled-chromium { inherit utils; }
+    then prev.callPackage ./ungoogled-chromium { inherit helpers; }
     else prev.ungoogled-chromium;
 
-  better-touch-tool = prev.callPackage ./better-touch-tool { inherit utils; };
+  better-touch-tool = prev.callPackage ./better-touch-tool { inherit helpers; };
 
   raycast =
     if prev.stdenv.isDarwin
-    then prev.callPackage ./raycast { inherit utils; }
+    then prev.callPackage ./raycast { inherit helpers; }
     else prev.raycast;
 
   android-studio =
     if prev.stdenv.isDarwin
-    then prev.callPackage ./android-studio { inherit utils; }
+    then prev.callPackage ./android-studio { inherit helpers; }
     else prev.android-studio;
 
-  emdash = prev.callPackage ./emdash { inherit utils; };
+  emdash = prev.callPackage ./emdash { inherit helpers; };
 
   zed-editor =
     if prev.stdenv.isDarwin
-    then prev.callPackage ./zed-editor { inherit utils; }
+    then prev.callPackage ./zed-editor { inherit helpers; }
     else prev.zed-editor;
   
-  microsoft-teams = prev.callPackage ./microsoft-teams { inherit utils; };
+  microsoft-teams = prev.callPackage ./microsoft-teams { inherit helpers; };
   
-  microsoft-outlook = prev.callPackage ./microsoft-outlook { inherit utils; };
+  microsoft-outlook = prev.callPackage ./microsoft-outlook { inherit helpers; };
   
-  affinity = prev.callPackage ./affinity { inherit utils; };
+  affinity = prev.callPackage ./affinity { inherit helpers; };
 
-  obs-studio = prev.callPackage ./obs-studio { inherit utils; };
+  obs-studio = prev.callPackage ./obs-studio { inherit helpers; };
+
+  tokyonight-gtk-theme = prev.callPackage ./tokyonight-gtk-theme { };
 }

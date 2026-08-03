@@ -1,4 +1,4 @@
-{ utils, stdenv, obs-studio }:
+{ helpers, stdenv, obs-studio }:
 #
 # OBS Studio — https://obsproject.com
 #
@@ -7,6 +7,6 @@
 # System Settings → Privacy & Security after first "Start Virtual Camera".
 #
 if stdenv.hostPlatform.isDarwin then
-  utils.darwin.mkBrewCask { caskName = "obs"; }
+  helpers.darwin.mkBrewCask { caskName = "obs"; }
 else
   obs-studio

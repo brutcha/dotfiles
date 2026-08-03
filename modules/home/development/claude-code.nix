@@ -42,10 +42,10 @@ in
       enableMcpIntegration = true;
 
       # Bump with `nix flake update <input>`.
-      plugins = [
-        inputs.figma-plugin
-        "${inputs.claude-plugins-official}/plugins/typescript-lsp"
-      ];
+      plugins = {
+        figma-plugin = inputs.figma-plugin;
+        typescript-lsp = "${inputs.claude-plugins-official}/plugins/typescript-lsp";
+      };
 
       # User-global MCP servers (project-scoped ones live in each project's .mcp.json).
       mcpServers = {

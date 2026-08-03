@@ -1,4 +1,4 @@
-{ utils }:
+{ helpers }:
 #
 # Insync for macOS
 #
@@ -6,4 +6,4 @@
 # Installed via Homebrew cask on macOS for easier updates.
 # Linux uses the nixpkgs version (handled by overlay in pkgs/default.nix).
 #
-utils.darwin.mkBrewCask { caskName = "insync"; }
+helpers.darwin.mkBrewCask { caskName = "insync"; }

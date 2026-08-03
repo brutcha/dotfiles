@@ -28,11 +28,15 @@ in
         spacing = 6;
         modules-left = [ "sway/workspaces" "sway/mode" ];
         modules-center = [ "sway/window" ];
-        modules-right = [ "tray" "pulseaudio" "network" "battery" "clock" ];
+        modules-right = [ "tray" "sway/language" "pulseaudio" "network" "battery" "clock" ];
 
         "sway/workspaces" = {
           disable-scroll = true;
           all-outputs = true;
+        };
+
+        "sway/language" = {
+          format = "<span weight='bold'>󰌌</span> {short}";
         };
 
         tray = { spacing = 10; };
@@ -99,8 +103,8 @@ in
           background: ${c.red};
         }
 
-        #clock, #battery, #network, #pulseaudio, #tray, #mode {
-          padding: 0 10px;
+        #clock, #battery, #network, #pulseaudio, #tray, #mode, #language {
+          padding: 0 6px;
           color: ${c.fg};
         }
 
