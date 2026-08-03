@@ -3,8 +3,8 @@
 # astoria — home-manager entry for `brutcha`.
 #
 # Toggles the fleet-standard `home.apps.*` options; modules/home/default.nix
-# picks the linux sub-bundle (sway/waybar/mako/fuzzel/swaylock/screenshot/
-# thunar/librewolf/moonlight/imv) via `hostSystem`.
+# picks the linux sub-bundle (sway/waybar/mako/fuzzel/screenshot/thunar/
+# librewolf/moonlight/imv) via `hostSystem`.
 #
 {
   imports = [ ../../modules/home ];
@@ -24,7 +24,6 @@
       waybar.enable     = true;
       mako.enable       = true;
       fuzzel.enable     = true;
-      swaylock.enable   = true;
       screenshot.enable = true;
     };
   };

@@ -20,6 +20,44 @@ in
     lib.mkEnableOption "Sway window manager (user-level config)";
 
   config = lib.mkIf cfg.enable {
+    # Power-aware swayidle stages — swayidle itself has no AC/battery
+    # awareness, so each stage checks power state at fire time via
+    # /sys/class/power_supply/AC/online (this machine's actual AC device).
+    home.packages = [
+      (pkgs.writeShellScriptBin "on-ac" ''
+        [ "$(cat /sys/class/power_supply/AC/online)" = "1" ]
+      '')
+      # 3min: dim on battery only (AC's dim is deferred to stage 2).
+      (pkgs.writeShellScriptBin "idle-stage1" ''
+        on-ac || brightnessctl -s set 20%
+      '')
+      # 5min: dim on AC, screen off on battery.
+      (pkgs.writeShellScriptBin "idle-stage2" ''
+        if on-ac; then
+          brightnessctl -s set 20%
+        else
+          swaymsg 'output * dpms off'
+        fi
+      '')
+      # 10min: screen off on AC, RAM-suspend on battery.
+      (pkgs.writeShellScriptBin "idle-stage3" ''
+        if on-ac; then
+          swaymsg 'output * dpms off'
+        else
+          systemctl suspend
+        fi
+      '')
+      # 20min: suspend-then-hibernate on AC (auto-hibernates ~30min later
+      # if left unplugged and unresumed), explicit hibernate on battery.
+      (pkgs.writeShellScriptBin "idle-stage4" ''
+        if on-ac; then
+          systemctl suspend-then-hibernate
+        else
+          systemctl hibernate
+        fi
+      '')
+    ];
+
     home.pointerCursor = {
       enable = true;
       package = pkgs.capitaine-cursors;
@@ -97,8 +135,6 @@ in
           "XF86AudioLowerVolume" = "exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-";
           "XF86AudioMute" = "exec wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle";
 
-          "${mod}+Escape" = "exec swaylock";
-
           "Print" = "exec screenshot-region";
           "Shift+Print" = "exec screenshot-full";
         };
@@ -126,10 +162,10 @@ in
         seat seat0 xcursor_theme capitaine-cursors 24
 
         exec swayidle -w \
-          timeout 180 'brightnessctl -s set 20%' resume 'brightnessctl -r' \
-          timeout 300 'swaylock -f' \
-          timeout 600 'swaymsg "output * dpms off"' resume 'swaymsg "output * dpms on"' \
-          timeout 1200 'systemctl suspend'
+          timeout 180 idle-stage1 resume 'brightnessctl -r' \
+          timeout 300 idle-stage2 resume 'swaymsg "output * dpms on"; brightnessctl -r' \
+          timeout 600 idle-stage3 resume 'swaymsg "output * dpms on"' \
+          timeout 1200 idle-stage4
       '';
     };
   };
