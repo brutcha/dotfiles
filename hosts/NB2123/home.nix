@@ -24,12 +24,18 @@ let
     CORP_FIGMA_ACCESS_TOKEN         = "corp/figma-access-token";
   };
 
-  # Corp Claude Code marketplaces + plugin picks, sourced from private.nix
+  # Corp Claude Code marketplaces + plugin picks, sourced from private.nix.
+  # `programs.claude-code.plugins` is either-attrset-or-list; the base module
+  # in modules/home/development/claude-code.nix defines an attrset, so this
+  # override must too — the two forms can't merge.
   corpMarketplaces = lib.mapAttrs (_: cfg: fetchGit cfg)
     (private.claude.marketplaces or { });
-  corpPlugins = map
-    (p: "${corpMarketplaces.${p.marketplace}}/${p.path}")
-    (private.claude.plugins or [ ]);
+  corpPlugins = lib.listToAttrs (map
+    (p: {
+      name = p.name or (baseNameOf p.path);
+      value = "${corpMarketplaces.${p.marketplace}}/${p.path}";
+    })
+    (private.claude.plugins or [ ]));
 in
 {
   home.stateVersion = "25.05";
