@@ -30,12 +30,18 @@ let
   # override must too — the two forms can't merge.
   corpMarketplaces = lib.mapAttrs (_: cfg: fetchGit cfg)
     (private.claude.marketplaces or { });
-  corpPlugins = lib.listToAttrs (map
+  corpPluginList = map
     (p: {
       name = p.name or (baseNameOf p.path);
       value = "${corpMarketplaces.${p.marketplace}}/${p.path}";
     })
-    (private.claude.plugins or [ ]));
+    (private.claude.plugins or [ ]);
+  corpPluginNames = map (p: p.name) corpPluginList;
+  corpPlugins =
+    if lib.length corpPluginNames != lib.length (lib.unique corpPluginNames) then
+      throw "corpPlugins: duplicate plugin name(s) in private.claude.plugins — set an explicit `name` on entries whose `path` basename collides"
+    else
+      lib.listToAttrs corpPluginList;
 in
 {
   home.stateVersion = "25.05";
