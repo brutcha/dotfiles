@@ -1,4 +1,4 @@
-{ utils }:
+{ helpers }:
 #
 # Microsoft Outlook for macOS
 #
@@ -6,4 +6,4 @@
 # Exchange accounts.
 # Installed via Homebrew cask for easier updates and maintenance.
 #
-utils.darwin.mkBrewCask { caskName = "microsoft-outlook"; }
+helpers.darwin.mkBrewCask { caskName = "microsoft-outlook"; }

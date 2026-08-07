@@ -1,4 +1,4 @@
-{ utils, ... }:
+{ helpers, ... }:
 #
 # Home-manager library utilities
 #
@@ -6,7 +6,7 @@
 # These utilities are made available via the `config.lib` attribute.
 #
 # Available utilities:
-# - lib.colors: Color manipulation functions (from utils.colors)
+# - lib.colors: Color manipulation functions (from helpers.colors)
 #   - toARGB: Convert hex color and alpha to ARGB format
 #
 # Usage in home-manager modules:
@@ -17,6 +17,6 @@
 #
 {
   config = {
-    lib.colors = utils.colors;
+    lib.colors = helpers.colors;
   };
 }

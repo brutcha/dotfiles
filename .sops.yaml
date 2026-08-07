@@ -1,0 +1,15 @@
+# sops config — maps files → recipients (age keys) for
+# encryption/decryption of hosts/*/secrets/*.yaml.
+#
+# Adding more NixOS hosts later: add another `&<host>` entry keyed to that
+# host's SSH host key and another creation_rule scoped to its secrets dir.
+
+keys:
+  - &brutcha_recovery age1uvs9kqpzmdty57x5a4m5c2x08nhpfxwhxpy5dp4f5dckykncs49qm538tl
+  - &astoria          age1jzg3lvcacyrkhdqeu87fplqrsx6glrgfhjy9xtvapca8k22a5g9s6r22pl
+
+creation_rules:
+  - path_regex: hosts/astoria/secrets/.*\.yaml$
+    age:
+      - *brutcha_recovery
+      - *astoria

@@ -1,4 +1,4 @@
-{ utils }:
+{ helpers }:
 #
 # Microsoft Teams for macOS
 #
@@ -6,4 +6,4 @@
 # used for corporate/work communication.
 # Installed via Homebrew cask for easier updates and maintenance.
 #
-utils.darwin.mkBrewCask { caskName = "microsoft-teams"; }
+helpers.darwin.mkBrewCask { caskName = "microsoft-teams"; }

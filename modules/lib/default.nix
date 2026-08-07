@@ -2,7 +2,7 @@
 #
 # Custom utility functions
 #
-# Global utilities available across the entire configuration via the `utils` special arg.
+# Global utilities available across the entire configuration via the `helpers` special arg.
 # Imported in flake.nix and passed to all modules via specialArgs.
 #
 # These utilities are system-wide and available to both nix-darwin and home-manager modules.
@@ -56,7 +56,7 @@
     #   A derivation that installs the macOS application
     #
     # Example:
-    #   utils.darwin.mkDmgApp {
+    #   helpers.darwin.mkDmgApp {
     #     inherit stdenv fetchurl;
     #     pname = "insync";
     #     version = "3.8.7.50505";
@@ -103,7 +103,7 @@
     #   A marker derivation with the cask name in passthru
     #
     # Example:
-    #   utils.darwin.mkBrewCask { caskName = "karabiner-elements"; }
+    #   helpers.darwin.mkBrewCask { caskName = "karabiner-elements"; }
     #
     # Usage in modules:
     #   When a package created with mkBrewCask is added to environment.systemPackages,

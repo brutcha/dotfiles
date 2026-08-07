@@ -1,4 +1,4 @@
-{ utils }:
+{ helpers }:
 #
 # Raycast for macOS
 #
@@ -12,4 +12,4 @@
 #
 # Raycast is darwin-only (no Linux build); the overlay leaves Linux alone.
 #
-utils.darwin.mkBrewCask { caskName = "raycast"; }
+helpers.darwin.mkBrewCask { caskName = "raycast"; }

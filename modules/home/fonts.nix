@@ -9,6 +9,9 @@
   # https://www.nerdfonts.com/
   home.packages = with pkgs; [
     nerd-fonts.jetbrains-mono
+    dejavu_fonts
+    twemoji-color-font
+    noto-fonts-cjk-sans
   ];
 
   # Enable fontconfig for proper font discovery and rendering across applications

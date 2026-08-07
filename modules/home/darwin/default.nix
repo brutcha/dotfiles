@@ -1,22 +1,22 @@
 { lib, pkgs, ... }:
 #
-# Darwin bundle — imports the shared modules + darwin-specific extras +
-# LaunchServices registration. Non-darwin hosts import ./default.nix directly.
+# Darwin bundle — darwin-only categories. Shared modules
+# (theme/fonts/shell/development) come from the universal bundle in
+# ../default.nix; don't re-import from here — the cycle overflows the
+# stack before `filterModules`'s dedup runs.
 #
 {
   imports = [
-    ../default.nix     # shared: theme, fonts, shell, development
-    ./development.nix  # darwin dev extras: lazydocker, xcbuild
-    ./internet         # davmail, helium
-    ./media            # obs-studio (scene + profile)
-    ./security         # keepass
-    ./window-manager   # aerospace, sketchybar, jankyborders
+    ./development.nix
+    ./internet
+    ./media
+    ./security
+    ./window-manager
   ];
 
-  # home-manager symlinks Mac .app bundles under ~/Applications/Home Manager Apps/,
-  # but LaunchServices doesn't recurse into that subdirectory. Re-register each
-  # bundle's resolved nix-store target so `open -a`, Spotlight, and Launchpad
-  # find them (`lsregister -f` needs a real path, not a symlink).
+  # LaunchServices doesn't recurse into ~/Applications/Home Manager Apps/;
+  # re-register each .app's real nix-store target so `open -a`, Spotlight,
+  # Launchpad find them.
   home.activation.registerNixApps =
     lib.mkIf pkgs.stdenv.hostPlatform.isDarwin
       (lib.hm.dag.entryAfter [ "linkGeneration" ] ''

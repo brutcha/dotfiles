@@ -11,8 +11,8 @@
   # https://nix-community.github.io/home-manager/index.xhtml#sec-install-nix-darwin-module
   home.stateVersion = "25.05";
 
-  # https://nix-community.github.io/home-manager/
-  imports = [ ../../modules/home/darwin ];
+  # reached via the universal bundle.
+  imports = [ ../../modules/home ];
 
   home.apps = {
     development = {
