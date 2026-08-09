@@ -26,6 +26,26 @@ required for Sunshine to present a captureable desktop during headless sessions.
 
 ---
 
+## Sleep / resume
+
+Suspend (S3) had `amdgpu` resume issues — GPU comes back broken, requiring a
+hard reset. Two independent mitigations, either likely sufficient alone,
+both applied:
+
+1. `pcie_aspm=off` kernel parameter — disables PCIe Active State Power
+   Management (link power-saving), a common culprit in device resume
+   failures:
+   ```bash
+   sudo grubby --update-kernel=ALL --args="pcie_aspm=off"
+   ```
+   Verify: `grubby --info=ALL | grep args`
+2. Hibernate instead of Suspend, for both the idle-timeout action and the
+   manual sleep/power-button action.
+
+**NixOS:** carry over both — kernel param and hibernate-as-default.
+
+---
+
 ## Wake-on-LAN
 
 Enables waking the machine from Moonlight before connecting.
@@ -33,7 +53,9 @@ Enables waking the machine from Moonlight before connecting.
 **Requirements:**
 
 1. **BIOS/UEFI** — enable "Wake on LAN" (may be labelled "Power on by PCI-E/PCI"
-   in the power management section; varies by BIOS version).
+   in the power management section; varies by BIOS version). Also check for an
+   "ErP Ready" setting and make sure it's **disabled** — if enabled it kills
+   5VSB standby power and silently breaks WoL (and USB wake) entirely.
 2. **NetworkManager** — configure the wired connection to keep magic-packet WoL
    active across reboots:
    ```bash
@@ -46,8 +68,9 @@ Moonlight sends the magic packet automatically when you attempt to connect to a
 sleeping host — no extra client-side config needed.
 
 > **Note:** WoL from full power-off requires auto-login so that Sunshine starts
-> with the graphical session. From suspend, the existing session resumes and
-> Sunshine is already running.
+> with the graphical session. From hibernate, the existing session (and
+> Sunshine) resumes automatically — no fresh login needed, same as suspend
+> before.
 
 ---
 
@@ -72,6 +95,31 @@ Sunshine to start without a manual login after boot/wake.
 
 **NixOS:** will need a NixOS module or a custom user service; keep regardless
 of which DE is chosen.
+
+### Sunshine game session (gamescope)
+
+Optional, on-demand — not required, and independent of whatever DE/WM gets
+chosen for the NixOS migration.
+
+Sunshine's default desktop capture streams whatever the physical display
+(TV or PC monitor) is currently running, at that display's resolution/aspect
+ratio. The screens in play here don't share an aspect ratio — TV is 16:9, PC
+monitor is ultrawide, astoria (laptop, used as a Moonlight client) is 16:10 —
+so full-desktop streaming works everywhere but gets letterboxed/pillarboxed
+on a mismatched client.
+
+For a specific game session where a clean fit matters (e.g. playing from
+astoria in the bath), wrap that app's launch command in
+[gamescope](https://github.com/ValveSoftware/gamescope) via Sunshine's
+per-app config:
+
+```
+gamescope -w <width> -h <height> -r <fps> -- %command%
+```
+
+Gamescope renders that game in its own virtual framebuffer sized to whatever
+the connecting Moonlight client requests, decoupled from the host's actual
+physical display. Set up per game, not system-wide.
 
 ---
 
