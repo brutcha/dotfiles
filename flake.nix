@@ -73,6 +73,14 @@
     # nextcloud-passwords). https://github.com/nix-community/NUR
     nur.url = "github:nix-community/NUR";
 
+    # spicetify-nix — declarative Spotify theming (spicetify-cli fails
+    # against the read-only Nix store, so it needs its own rebuild-a-
+    # themed-derivation approach). https://github.com/Gerg-L/spicetify-nix
+    spicetify-nix = {
+      url = "github:Gerg-L/spicetify-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Lanzaboote — signed systemd-boot replacement (Secure Boot chain). Pinned
     # to the release tag rather than main because it's a boot-chain-critical
     # dependency and unpinned bumps can brick unattended updates. v1.1.0

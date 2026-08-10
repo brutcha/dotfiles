@@ -18,6 +18,7 @@
     internet.librewolf.enable = true;
     media.moonlight.enable    = true;
     media.imv.enable          = true;
+    media.spotify.enable      = true;
     filemanager.thunar.enable = true;
     windowManager = {
       sway.enable       = true;
