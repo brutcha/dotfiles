@@ -13,16 +13,23 @@ let
   mkRegistryUrl = p:
     "//pkgs.dev.azure.com/${p.adoOrganization}/_packaging/${p.registryFeed}/npm/registry/";
 
-  npmRegistriesBlock = lib.concatStrings (lib.mapAttrsToList (_: p: ''
-      ${mkRegistryUrl p}:
-        npmAlwaysAuth: true
-        npmAuthIdent: "${p.adoOrganization}:$CORP_AZURE_DEVOPS_NPMRC"
-  '') projectsWithRegistry);
+  # ''-string strip always flattens the first line to column 0; indent by hand.
+  indent = n: str:
+    let
+      prefix = lib.concatStrings (lib.genList (_: " ") n);
+      indentLine = l: if l == "" then "" else prefix + l;
+    in lib.concatStringsSep "\n" (map indentLine (lib.splitString "\n" str));
 
-  npmScopesBlock = lib.concatStrings (lib.mapAttrsToList (_: p: ''
-      ${p.registryScope}:
-        npmRegistryServer: "https:${mkRegistryUrl p}"
-  '') projectsWithRegistry);
+  npmRegistriesBlock = indent 2 (lib.concatStrings (lib.mapAttrsToList (_: p: ''
+    ${mkRegistryUrl p}:
+      npmAlwaysAuth: true
+      npmAuthIdent: "${p.adoOrganization}:$CORP_AZURE_DEVOPS_NPMRC"
+  '') projectsWithRegistry));
+
+  npmScopesBlock = indent 2 (lib.concatStrings (lib.mapAttrsToList (_: p: ''
+    ${p.registryScope}:
+      npmRegistryServer: "https:${mkRegistryUrl p}"
+  '') projectsWithRegistry));
 
   hasAnyRegistry = projectsWithRegistry != { };
 
