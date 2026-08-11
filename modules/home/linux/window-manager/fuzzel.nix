@@ -7,6 +7,7 @@
 #
 let
   cfg = config.home.apps.windowManager.fuzzel;
+  terminal = config.home.apps.windowManager.terminal;
   c = config.theme.dark;
   # fuzzel wants rrggbbaa hex without the leading '#'.
   stripHash = s: lib.removePrefix "#" s;
@@ -21,14 +22,13 @@ in
       settings = {
         main = {
           font = "JetBrainsMonoNL Nerd Font:size=12";
-          terminal = "ghostty";
           layer = "overlay";
           width = 40;
           lines = 15;
           horizontal-pad = 20;
           vertical-pad = 12;
           inner-pad = 8;
-        };
+        } // lib.optionalAttrs (terminal != null) { inherit terminal; };
         colors = {
           background      = "${stripHash c.bg}f0";
           text            = "${stripHash c.fg}ff";

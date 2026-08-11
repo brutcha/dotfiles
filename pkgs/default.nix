@@ -22,6 +22,8 @@
 #   linker crash; Linux uses nixpkgs)
 # - tokyonight-gtk-theme: GTK theme (nixpkgs dropped it over a dead GTK2
 #   dependency the theme doesn't need — see pkgs/tokyonight-gtk-theme)
+# - spotify-tray-wayland: Native Wayland/SNI Spotify tray icon, not in
+#   nixpkgs (Linux-only — see pkgs/spotify-tray-wayland)
 #
 # This overlay is applied in flake.nix when creating the pkgs instance.
 #
@@ -76,4 +78,6 @@ final: prev: {
   obs-studio = prev.callPackage ./obs-studio { inherit helpers; };
 
   tokyonight-gtk-theme = prev.callPackage ./tokyonight-gtk-theme { };
+
+  spotify-tray-wayland = prev.callPackage ./spotify-tray-wayland { };
 }

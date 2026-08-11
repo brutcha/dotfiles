@@ -12,8 +12,13 @@
 # grp:caps_toggle binds Capslock at the xkb layer to cycle us↔cz — no app
 # can bind it and Capslock loses its latch function.
 #
+# No app-specific config here (workspace assigns etc.) — that's host layout,
+# see hosts/astoria/home.nix.
+#
 let
   cfg = config.home.apps.windowManager.sway;
+  terminal = config.home.apps.windowManager.terminal;
+  menu = config.home.apps.windowManager.menu;
 in
 {
   options.home.apps.windowManager.sway.enable =
@@ -74,8 +79,6 @@ in
 
       config = rec {
         modifier = "Mod4";
-        terminal = "ghostty";
-        menu = "fuzzel";
         bars = [ ];
 
         window.titlebar = false;
@@ -98,8 +101,6 @@ in
         };
 
         keybindings = let mod = modifier; in {
-          "${mod}+Return" = "exec ${terminal}";
-          "${mod}+space" = "exec ${menu}";
           "${mod}+w" = "kill";
           "${mod}+Shift+e" = "exit";
 
@@ -113,13 +114,11 @@ in
           "${mod}+Ctrl+k" = "move up";
           "${mod}+Ctrl+l" = "move right";
 
-          "${mod}+1" = "workspace number 1";
-          "${mod}+2" = "workspace number 2";
-          # `pgrep -x moonlight` doesn't work here: the persistent process's comm
-          # is `.moonlight-wrap` (a truncated Nix wrapper name)
-          "${mod}+3" = ''exec "swaymsg -t get_tree | grep -q com.moonlight_stream.Moonlight || moonlight"; workspace number 3'';
-          "${mod}+4" = "workspace number 4";
-          "${mod}+5" = "workspace number 5";
+          "${mod}+1" = lib.mkDefault "workspace number 1";
+          "${mod}+2" = lib.mkDefault "workspace number 2";
+          "${mod}+3" = lib.mkDefault "workspace number 3";
+          "${mod}+4" = lib.mkDefault "workspace number 4";
+          "${mod}+5" = lib.mkDefault "workspace number 5";
 
           "${mod}+Ctrl+1" = "move container to workspace number 1";
           "${mod}+Ctrl+2" = "move container to workspace number 2";
@@ -139,22 +138,14 @@ in
 
           "Print" = "exec screenshot-region";
           "Shift+Print" = "exec screenshot-full";
+        } // lib.optionalAttrs (terminal != null) {
+          "${mod}+Return" = "exec ${terminal}";
+        } // lib.optionalAttrs (menu != null) {
+          "${mod}+space" = "exec ${menu}";
         };
 
         startup = [
           { command = "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1"; }
-        ];
-
-        assigns = {
-          "1" = [ { app_id = "librewolf"; } ];
-          "2" = [ { app_id = "com.mitchellh.ghostty"; } ];
-          "3" = [ { app_id = "com.moonlight_stream.Moonlight"; } ];
-        };
-
-        window.commands = [
-          { command = "focus"; criteria = { app_id = "librewolf"; }; }
-          { command = "focus"; criteria = { app_id = "com.mitchellh.ghostty"; }; }
-          { command = "focus"; criteria = { app_id = "com.moonlight_stream.Moonlight"; }; }
         ];
 
         colors = let c = config.theme.dark; in {

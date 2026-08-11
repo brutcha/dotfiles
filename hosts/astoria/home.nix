@@ -18,6 +18,7 @@
     internet.librewolf.enable = true;
     media.moonlight.enable    = true;
     media.imv.enable          = true;
+    media.spotify.enable      = true;
     filemanager.thunar.enable = true;
     windowManager = {
       sway.enable       = true;
@@ -25,6 +26,8 @@
       mako.enable       = true;
       fuzzel.enable     = true;
       screenshot.enable = true;
+      terminal = "ghostty";
+      menu     = "fuzzel";
     };
   };
 
@@ -58,6 +61,28 @@
   # for dark mode on Wayland, unlike the GTK3-only setting above.
   dconf.settings."org/gnome/desktop/interface" = {
     color-scheme = "prefer-dark";
+  };
+
+  # --- Sway workspace layout ---
+  # Cross-cutting; not owned by any single app module.
+  wayland.windowManager.sway.config = {
+    assigns = {
+      "1" = [ { app_id = "librewolf"; } ];
+      "2" = [ { app_id = "com.mitchellh.ghostty"; } ];
+      "3" = [ { app_id = "com.moonlight_stream.Moonlight"; } ];
+    };
+
+    window.commands = [
+      { command = "focus"; criteria = { app_id = "librewolf"; }; }
+      { command = "focus"; criteria = { app_id = "com.mitchellh.ghostty"; }; }
+      { command = "focus"; criteria = { app_id = "com.moonlight_stream.Moonlight"; }; }
+    ];
+
+    keybindings = let mod = config.wayland.windowManager.sway.config.modifier; in {
+      # `pgrep -x moonlight` doesn't work here: the persistent process's comm
+      # is `.moonlight-wrap` (a truncated Nix wrapper name)
+      "${mod}+3" = ''exec "swaymsg -t get_tree | grep -q com.moonlight_stream.Moonlight || moonlight"; workspace number 3'';
+    };
   };
 
   # File-sync client. Server URL + creds set on first launch.
