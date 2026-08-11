@@ -101,8 +101,6 @@ in
         };
 
         keybindings = let mod = modifier; in {
-          "${mod}+Return" = lib.mkIf (terminal != null) "exec ${terminal}";
-          "${mod}+space" = lib.mkIf (menu != null) "exec ${menu}";
           "${mod}+w" = "kill";
           "${mod}+Shift+e" = "exit";
 
@@ -140,6 +138,10 @@ in
 
           "Print" = "exec screenshot-region";
           "Shift+Print" = "exec screenshot-full";
+        } // lib.optionalAttrs (terminal != null) {
+          "${mod}+Return" = "exec ${terminal}";
+        } // lib.optionalAttrs (menu != null) {
+          "${mod}+space" = "exec ${menu}";
         };
 
         startup = [
