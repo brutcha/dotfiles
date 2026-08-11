@@ -11,6 +11,7 @@
 let
   cfg = config.home.apps.windowManager.waybar;
   c = config.theme.dark;
+  terminal = config.home.apps.windowManager.terminal;
 in
 {
   options.home.apps.windowManager.waybar.enable =
@@ -65,6 +66,7 @@ in
           format-ethernet = "<span weight='bold'>󰈀</span> {ifname}";
           format-disconnected = "<span weight='bold'>󰌙</span> disconnected";
           tooltip-format = "{ifname}: {ipaddr}/{cidr}";
+        } // lib.optionalAttrs (terminal == "ghostty") {
           on-click = "${pkgs.ghostty}/bin/ghostty --command=nmtui";
         };
 

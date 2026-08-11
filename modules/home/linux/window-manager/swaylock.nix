@@ -5,8 +5,6 @@
 # Available options:
 # - home.apps.windowManager.swaylock.enable
 #
-# Invoked by swayidle timeout chain (see sway.nix) and Mod+Escape.
-#
 let
   cfg = config.home.apps.windowManager.swaylock;
   c = config.theme.dark;
