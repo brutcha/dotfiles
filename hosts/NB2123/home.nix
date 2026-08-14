@@ -132,7 +132,7 @@ in
         ${pkgs.jq}/bin/jq \
           --arg jwt "$CORP_ANTHROPIC_JWT" \
           --arg baseUrl "$CORP_ANTHROPIC_BASE_URL" \
-          '.env.ANTHROPIC_AUTH_TOKEN = $jwt | .env.ANTHROPIC_BASE_URL = $baseUrl' \
+          '.env.ANTHROPIC_API_KEY = $jwt | .env.ANTHROPIC_BASE_URL = $baseUrl | del(.env.ANTHROPIC_AUTH_TOKEN)' \
           "$settingsPath" > "$tmp"
         $DRY_RUN_CMD mv "$tmp" "$settingsPath"
       else

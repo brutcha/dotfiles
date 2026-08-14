@@ -23,7 +23,12 @@ let
 
   envExportsAttrs = (project.env or { })
     // lib.optionalAttrs codexEnabled  { CODEX_HOME = codexHomeDir; }
-    // lib.optionalAttrs claudeEnabled { CLAUDE_CONFIG_DIR = claudeHomeDir; };
+    // lib.optionalAttrs claudeEnabled {
+      CLAUDE_CONFIG_DIR = claudeHomeDir;
+      # Claude Code's settings.json env is trust-dialog-gated; process env isn't.
+      ANTHROPIC_API_KEY = "$CORP_ANTHROPIC_JWT";
+      ANTHROPIC_BASE_URL = "$CORP_ANTHROPIC_BASE_URL";
+    };
 
   # Only `$CORP_<UPPER_SNAKE>` matches — `$HOME/foo` or `abc$def` fall through
   # to literal (avoids accidental shell interp in the emit path).
@@ -70,6 +75,8 @@ let
   # scripts.setup copy below.
   emdashPreservePatterns = [
     ".env"
+    ".env.dev"
+    ".env.test"
     ".env.local"
     ".envrc"
     ".claude/.custom/**"
