@@ -32,8 +32,8 @@
 
   # --- Kernel ---
   boot.kernelPackages = pkgs.linuxPackages;
-  # nixos-hardware appends `mem_sleep_default=deep` unconditionally, but this
-  # box's firmware is s2idle-only → `systemctl suspend` returns -EINVAL.
+  # nixos-hardware appends `mem_sleep_default=deep` unconditionally, but S3 on
+  # the 9300 conflicts with Secure Boot → `systemctl suspend` returns -EINVAL.
   # Kernel is last-wins for `mem_sleep_default=`, so `mkAfter` overrides.
   # `mkMerge` (not two `boot.kernelParams = [...]` — Nix parser rejects
   # duplicate attr paths before eval, so `mkAfter` on a second decl doesn't
@@ -122,7 +122,9 @@
   systemd.sleep.settings.Sleep = {
     HibernateDelaySec = "30min";
     SuspendState = "mem";
-    HibernateMode = "platform";
+    # `platform` (ACPI S4) silently no-ops on this firmware — no reboot ever
+    # happens. `shutdown` powers off normally instead, using `resume=`.
+    HibernateMode = "shutdown";
   };
 
   # --- Graphics ---
