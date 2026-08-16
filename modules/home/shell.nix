@@ -115,7 +115,7 @@
   services = {
     # Automatic updates for tldr CLI cache
     # https://nix-community.github.io/home-manager/options.xhtml#opt-services.tldr-update.enable
-    tldr-update = lib.mkIf pkgs.stdenv.isLinux {
+    tldr-update = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
       enable = true;
     };
   };

@@ -40,7 +40,7 @@ in
         };
         border = {
           width = 2;
-          radius = 6;
+          radius = 0;
         };
       };
     };

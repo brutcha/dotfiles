@@ -30,12 +30,12 @@
 { helpers }:
 final: prev: {
   keepassxc =
-    if prev.stdenv.isDarwin
+    if prev.stdenv.hostPlatform.isDarwin
     then prev.callPackage ./keepassxc { inherit helpers; }
     else prev.keepassxc;
 
   insync =
-    if prev.stdenv.isDarwin
+    if prev.stdenv.hostPlatform.isDarwin
     then prev.callPackage ./insync { inherit helpers; }
     else prev.insync;
     
@@ -46,26 +46,26 @@ final: prev: {
   orbstack = prev.callPackage ./orbstack { inherit helpers; };
 
   ungoogled-chromium =
-    if prev.stdenv.isDarwin
+    if prev.stdenv.hostPlatform.isDarwin
     then prev.callPackage ./ungoogled-chromium { inherit helpers; }
     else prev.ungoogled-chromium;
 
   better-touch-tool = prev.callPackage ./better-touch-tool { inherit helpers; };
 
   raycast =
-    if prev.stdenv.isDarwin
+    if prev.stdenv.hostPlatform.isDarwin
     then prev.callPackage ./raycast { inherit helpers; }
     else prev.raycast;
 
   android-studio =
-    if prev.stdenv.isDarwin
+    if prev.stdenv.hostPlatform.isDarwin
     then prev.callPackage ./android-studio { inherit helpers; }
     else prev.android-studio;
 
   emdash = prev.callPackage ./emdash { inherit helpers; };
 
   zed-editor =
-    if prev.stdenv.isDarwin
+    if prev.stdenv.hostPlatform.isDarwin
     then prev.callPackage ./zed-editor { inherit helpers; }
     else prev.zed-editor;
   
