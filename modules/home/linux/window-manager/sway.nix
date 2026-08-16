@@ -54,11 +54,13 @@ in
         fi
       '')
       # 20min: suspend-then-hibernate on AC (auto-hibernates ~30min later
-      # if left unplugged and unresumed). On battery the machine is already
-      # asleep by stage3, so this stage never actually reaches battery.
+      # if left unplugged and unresumed). On battery, hibernate as fallback
+      # (e.g. if stage3 suspended on AC, then unplugged and resumed).
       (pkgs.writeShellScriptBin "idle-stage4" ''
         if on-ac; then
           systemctl suspend-then-hibernate
+        else
+          systemctl hibernate
         fi
       '')
     ];
