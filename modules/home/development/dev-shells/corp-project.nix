@@ -15,11 +15,22 @@ let
   claudeHomeDir = "${config.home.homeDirectory}/.local/share/dev-shells/${projectId}/claude";
 
   projectMcpServers = project.mcpServers or { };
+  # Codex starts stdio MCPs outside direnv; pass only the CA variables.
+  projectMcpCertificateEnv = lib.filterAttrs (name: _: builtins.elem name [
+    "NODE_EXTRA_CA_CERTS"
+    "SSL_CERT_FILE"
+  ]) (project.env or { });
+  projectMcpServersWithCertificates = lib.mapAttrs (_: server:
+    if server.type or null == "stdio" then server // {
+      # MCP-specific values override the project defaults.
+      env = projectMcpCertificateEnv // (server.env or { });
+    } else server
+  ) projectMcpServers;
   # In a store file (not a shell heredoc) so an apostrophe in any mcpServers
   # value can't break the activation-time jq call. Unresolved $CORP_* refs —
   # the jq walker below resolves them.
   projectMcpServersFile = pkgs.writeText "${projectId}-mcps.json"
-    (builtins.toJSON projectMcpServers);
+    (builtins.toJSON projectMcpServersWithCertificates);
 
   envExportsAttrs = (project.env or { })
     // lib.optionalAttrs codexEnabled  { CODEX_HOME = codexHomeDir; }
@@ -108,7 +119,7 @@ let
   });
 
   codexProjectConfig =
-    if codexEnabled then codexCfg._lib.renderConfigToml projectMcpServers
+    if codexEnabled then codexCfg._lib.renderConfigToml projectMcpServersWithCertificates
     else null;
 in
 {

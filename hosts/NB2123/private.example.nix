@@ -56,6 +56,7 @@ in
       #
       # For stdio, `env` values with `$CORP_*` refs are resolved to literals
       # at activation and baked into config.toml / .claude.json (chmod 0600).
+      # CA variables from project `env` are added to each stdio MCP.
       mcpServers = {
         atlassian = {
           type = "http";
