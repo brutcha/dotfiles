@@ -28,7 +28,7 @@ in
       settings = {
         credential = {
           helper = "manager";
-        } // lib.optionalAttrs pkgs.stdenv.isLinux {
+        } // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           # GCM needs an explicit credential store on Linux; gnome-keyring's
           # Secret Service is already enabled system-wide.
           credentialStore = "secretservice";
