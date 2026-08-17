@@ -11,7 +11,7 @@
   ];
 
   # --- Bootloader (Lanzaboote / Secure Boot) ---
-  # Keys: `sbctl create-keys` at install, `enroll-keys --microsoft` at first boot (README Phase 3/4b).
+  # Keys: `sbctl create-keys` at install, `sbctl enroll-keys --microsoft` at first boot (README Phase 3/4b).
   boot.loader.systemd-boot.enable = lib.mkForce false;  # Lanzaboote sets boot.loader.external.enable = true
   boot.loader.efi.canTouchEfiVariables = true;
   boot.lanzaboote = {
@@ -78,8 +78,7 @@
       INTEL_GPU_MAX_FREQ_ON_BAT     = 750;
       INTEL_GPU_BOOST_FREQ_ON_BAT   = 750;
       RUNTIME_PM_ON_BAT             = "auto";
-      PCIE_ASPM_ON_BAT              = "powersupersave";
-      PCIE_ASPM_ON_SAV              = "powersupersave";
+      PCIE_ASPM_ON_BAT              = "powersupersave";  # SAV tier reuses this (no _ON_SAV in TLP 1.9)
       WIFI_PWR_ON_BAT               = "off";
       START_CHARGE_THRESH_BAT0      = 60;
       STOP_CHARGE_THRESH_BAT0       = 80;
