@@ -92,6 +92,8 @@ let
     ".envrc"
     ".claude/.custom/**"
     ".claude/.custom-autoload/**"
+    ".codex/.custom/**"
+    ".codex/.custom-autoload/**"
   ];
 
   # Prepended by emdash to every PTY/agent spawn. Without this, Claude spawns
