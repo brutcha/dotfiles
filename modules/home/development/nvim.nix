@@ -32,8 +32,7 @@
     # Code formatters for automatic code style enforcement
     stylua
     prettierd
-    black
-    isort
+    ruff                 # black is too slow for conform's 500ms format-on-save
     shfmt
     taplo
     nixpkgs-fmt

@@ -44,16 +44,18 @@ in
           swaymsg 'output * dpms off'
         fi
       '')
-      # 10min: screen off on AC, RAM-suspend on battery.
+      # 10min: screen off on AC, suspend-then-hibernate on battery
+      # (auto-hibernates ~30min later if left unresumed).
       (pkgs.writeShellScriptBin "idle-stage3" ''
         if on-ac; then
           swaymsg 'output * dpms off'
         else
-          systemctl suspend
+          systemctl suspend-then-hibernate
         fi
       '')
       # 20min: suspend-then-hibernate on AC (auto-hibernates ~30min later
-      # if left unplugged and unresumed), explicit hibernate on battery.
+      # if left unplugged and unresumed). On battery, hibernate as fallback
+      # (e.g. if stage3 suspended on AC, then unplugged and resumed).
       (pkgs.writeShellScriptBin "idle-stage4" ''
         if on-ac; then
           systemctl suspend-then-hibernate

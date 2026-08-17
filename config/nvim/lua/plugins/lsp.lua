@@ -295,7 +295,7 @@ return {
         python = function()
           -- Priority order: check what's available in the activated venv
           if vim.fn.exepath("ruff") ~= "" then
-            return { "ruff_format" }
+            return { "ruff_organize_imports", "ruff_format" }
           elseif vim.fn.exepath("black") ~= "" then
             return { "black", "isort" }
           elseif vim.fn.exepath("yapf") ~= "" then

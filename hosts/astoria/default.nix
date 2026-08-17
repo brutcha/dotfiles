@@ -81,7 +81,6 @@
     brightnessctl       # sway XF86MonBrightness keybinds
     sbctl               # Secure Boot key management
     tpm2-tools          # TPM inspection + re-enrollment
-    pavucontrol         # waybar pulseaudio click target
   ];
   # brightnessctl's udev rule gives `video` group write access to
   # /sys/class/backlight — services.udev scans only .packages (NOT

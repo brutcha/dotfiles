@@ -50,6 +50,8 @@
         tweakVariants = [ "black" ];
       };
     };
+    # GTK4 ignores gtk-theme-name
+    gtk4.theme  = config.gtk.theme;
     iconTheme   = { name = "Papirus-Dark";      package = pkgs.papirus-icon-theme; };
     cursorTheme = { name = "Bibata-Modern-Ice"; package = pkgs.bibata-cursors; };
     # Matches the Nerd Font used across sway/waybar/mako/fuzzel.
@@ -76,6 +78,7 @@
       { command = "focus"; criteria = { app_id = "librewolf"; }; }
       { command = "focus"; criteria = { app_id = "com.mitchellh.ghostty"; }; }
       { command = "focus"; criteria = { app_id = "com.moonlight_stream.Moonlight"; }; }
+      { command = "floating enable, resize set 900 600, move position center"; criteria = { app_id = "org.pulseaudio.pavucontrol"; }; }
     ];
 
     keybindings = let mod = config.wayland.windowManager.sway.config.modifier; in {
