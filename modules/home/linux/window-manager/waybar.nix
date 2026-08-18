@@ -102,8 +102,6 @@ in
         };
 
         battery = {
-          # Rescale so TLP's charge limit (STOP_CHARGE_THRESH_BAT0 = 80) reads as 100%.
-          "full-at" = 80;
           format = "<span weight='bold'>{icon}</span> {capacity}%";
           format-icons = [ "󰂎" "󰁻" "󰁾" "󰂀" "󰂂" ];
           format-charging = "<span weight='bold'>󰂄</span> {capacity}%";

@@ -80,8 +80,8 @@
       RUNTIME_PM_ON_BAT             = "auto";
       PCIE_ASPM_ON_BAT              = "powersupersave";  # SAV tier reuses this (no _ON_SAV in TLP 1.9)
       WIFI_PWR_ON_BAT               = "off";
-      START_CHARGE_THRESH_BAT0      = 60;
-      STOP_CHARGE_THRESH_BAT0       = 80;
+      START_CHARGE_THRESH_BAT0      = 50;
+      STOP_CHARGE_THRESH_BAT0       = 60;
     };
   };
   services.thermald.enable = true;
