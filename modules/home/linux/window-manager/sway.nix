@@ -73,6 +73,7 @@ in
       layout.auto_tile = true;
       focus.lockin_delay = 750;
       misc.seq_inhibit = true;
+      misc.auto_nop_delay = 3000;
     };
 
     home.pointerCursor = {
