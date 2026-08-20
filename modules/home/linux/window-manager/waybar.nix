@@ -193,10 +193,10 @@ in
     systemd.user.services.waybar.Service.ExecStartPre =
       "${pkgs.writeShellScript "wait-xkb-layouts" ''
         for _ in {1..50}; do
-          swaymsg -t get_inputs -r 2>/dev/null \
+          ${pkgs.coreutils}/bin/timeout 1 ${pkgs.sway-unwrapped}/bin/swaymsg -t get_inputs -r 2>/dev/null \
             | ${pkgs.jq}/bin/jq -e '[.[]|select(.type=="keyboard")|(.xkb_layout_names|length)]|max >= 2' >/dev/null \
             && exit 0
-          sleep 0.1
+          ${pkgs.coreutils}/bin/sleep 0.1
         done
         exit 0 # never block the bar on a failed probe
       ''}";
