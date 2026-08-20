@@ -1,5 +1,6 @@
 #
-# Linux window manager stack: Sway + Waybar + Mako + Fuzzel + Swaylock.
+# Linux window manager stack: Sway (+ swayr) + Waybar + Mako + Fuzzel +
+# Swaylock.
 #
 { lib, ... }:
 {

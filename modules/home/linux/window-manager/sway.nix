@@ -7,7 +7,7 @@
 #
 # System-level `programs.sway.enable` in the host installs the compositor
 # system-wide; this module owns user config (bindings, output, input,
-# startup, idle chain, colors).
+# startup, idle chain, colors, swayr).
 #
 # grp:caps_toggle binds Capslock at the xkb layer to cycle us↔cz — no app
 # can bind it and Capslock loses its latch function.
@@ -19,6 +19,7 @@ let
   cfg = config.home.apps.windowManager.sway;
   terminal = config.home.apps.windowManager.terminal;
   menu = config.home.apps.windowManager.menu;
+  tomlFormat = pkgs.formats.toml { };
 in
 {
   options.home.apps.windowManager.sway.enable =
@@ -63,7 +64,16 @@ in
           systemctl hibernate
         fi
       '')
+      pkgs.swayr
     ];
+
+    # swayr's own auto-tiling + LRU-recency tuning; other options default,
+    # see https://lib.rs/crates/swayr#readme-swayr-configuration
+    xdg.configFile."swayr/config.toml".source = tomlFormat.generate "swayr-config.toml" {
+      layout.auto_tile = true;
+      focus.lockin_delay = 750;
+      misc.seq_inhibit = true;
+    };
 
     home.pointerCursor = {
       enable = true;
@@ -80,7 +90,7 @@ in
       wrapperFeatures.gtk = true;
 
       config = rec {
-        modifier = "Mod4";
+        modifier = "Mod1"; #alt
         bars = [ ];
 
         window.titlebar = false;
@@ -94,7 +104,7 @@ in
 
         input."type:keyboard" = {
           xkb_layout = "us,cz";
-          xkb_variant = "altgr-intl,";
+          xkb_variant = "altgr-intl,qwerty";
           xkb_options = "grp:caps_toggle";
         };
         input."type:touchpad" = {
@@ -140,6 +150,9 @@ in
 
           "Print" = "exec screenshot-region";
           "Shift+Print" = "exec screenshot-full";
+
+          "${mod}+Tab" = "exec ${pkgs.swayr}/bin/swayr next-window all-workspaces";
+          "${mod}+Shift+Tab" = "exec ${pkgs.swayr}/bin/swayr prev-window all-workspaces";
         } // lib.optionalAttrs (terminal != null) {
           "${mod}+Return" = "exec ${terminal}";
         } // lib.optionalAttrs (menu != null) {
@@ -148,6 +161,13 @@ in
 
         startup = [
           { command = "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1"; }
+          # always = true: plain exec only fires on true startup, not reload.
+          # A reload can leave swayrd running but its socket dead, so a
+          # pgrep check isn't enough — probe liveness with a real IPC call.
+          {
+            command = ''"${pkgs.swayr}/bin/swayr nop >/dev/null 2>&1 || { pkill -x swayrd; sleep 0.3; ${pkgs.swayr}/bin/swayrd; }"'';
+            always = true;
+          }
         ];
 
         colors = let c = config.theme.dark; in {
