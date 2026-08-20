@@ -187,5 +187,18 @@ in
 
       '';
     };
+
+    # sway/language builds its layout map at startup, starting before
+    # sway has applied xkb_layout.
+    systemd.user.services.waybar.Service.ExecStartPre =
+      "${pkgs.writeShellScript "wait-xkb-layouts" ''
+        for _ in {1..50}; do
+          ${pkgs.coreutils}/bin/timeout 1 ${pkgs.sway-unwrapped}/bin/swaymsg -t get_inputs -r 2>/dev/null \
+            | ${pkgs.jq}/bin/jq -e '[.[]|select(.type=="keyboard")|(.xkb_layout_names|length)]|max >= 2' >/dev/null \
+            && exit 0
+          ${pkgs.coreutils}/bin/sleep 0.1
+        done
+        exit 0 # never block the bar on a failed probe
+      ''}";
   };
 }
