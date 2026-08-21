@@ -201,6 +201,7 @@ in
     systemd.user.services.wl-clip-persist = {
       Unit = {
         Description = "Keep Wayland clipboard contents after the source client exits";
+        After = [ "graphical-session.target" ];
         PartOf = [ "graphical-session.target" ];
       };
       Service = {
