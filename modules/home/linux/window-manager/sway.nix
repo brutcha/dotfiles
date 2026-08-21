@@ -65,6 +65,7 @@ in
         fi
       '')
       pkgs.swayr
+      pkgs.wl-clipboard
     ];
 
     # swayr's own auto-tiling + LRU-recency tuning; other options default,
@@ -193,6 +194,22 @@ in
           timeout 600 idle-stage3 resume 'swaymsg "output * dpms on"' \
           timeout 1200 idle-stage4
       '';
+    };
+
+    # Takes clipboard ownership so content survives the source client exiting;
+    # regular only, PRIMARY dies with its selection by design.
+    systemd.user.services.wl-clip-persist = {
+      Unit = {
+        Description = "Keep Wayland clipboard contents after the source client exits";
+        After = [ "graphical-session.target" ];
+        PartOf = [ "graphical-session.target" ];
+      };
+      Service = {
+        Type = "simple";
+        ExecStart = "${pkgs.wl-clip-persist}/bin/wl-clip-persist --clipboard regular";
+        Restart = "on-failure";
+      };
+      Install.WantedBy = [ "graphical-session.target" ];
     };
   };
 }
