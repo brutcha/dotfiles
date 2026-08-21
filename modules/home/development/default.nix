@@ -48,7 +48,13 @@ in
         enable = true;
         enableZshIntegration = true;
         package = if pkgs.stdenv.hostPlatform.isDarwin then pkgs.ghostty-bin else pkgs.ghostty;
-        settings.theme = "dark:TokyoNight Night,light:TokyoNight Day";
+        settings = {
+          theme = "dark:TokyoNight Night,light:TokyoNight Day";
+        }
+        # Linux only: darwin has no PRIMARY, false there kills select-to-copy.
+        // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          copy-on-select = false;
+        };
       };
     })
 
