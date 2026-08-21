@@ -20,11 +20,11 @@
     "claude-plugins-official": {
       "flake": false,
       "locked": {
-        "lastModified": 1787163860,
-        "narHash": "sha256-QH6Zuaxw1heAuMZ2Np9jnIYEIPCGCZHchxjaXNAKQbA=",
+        "lastModified": 1787259970,
+        "narHash": "sha256-PZNjydvhQh2fSbIxRk6+5plJMdD5cYLwZsHNzh3Eowg=",
         "owner": "anthropics",
         "repo": "claude-plugins-official",
-        "rev": "0fc2bb13a805969c14b0fe9398bad41db346d84e",
+        "rev": "67a666efc8524ff7abaa266f84e514aa77aee48f",
         "type": "github"
       },
       "original": {
@@ -71,11 +71,11 @@
     "figma-plugin": {
       "flake": false,
       "locked": {
-        "lastModified": 1786682205,
-        "narHash": "sha256-WMXmz89Ry2eNHbOAtbyrXDC2gA01QyGcGWqUhNwyfcA=",
+        "lastModified": 1787233503,
+        "narHash": "sha256-uSDR8pjwnFMSMUKY/HWHWhbbWuZ4buWss86Gq5GOYqk=",
         "owner": "figma",
         "repo": "mcp-server-guide",
-        "rev": "72fcf1f4b170bcaa78fa8bef2f27cce15f4d58f4",
+        "rev": "7f6562c4900fafb46e5e8fd3cc8ced954779bab3",
         "type": "github"
       },
       "original": {
@@ -316,11 +316,11 @@
         "nixpkgs": "nixpkgs_3"
       },
       "locked": {
-        "lastModified": 1787233080,
-        "narHash": "sha256-gcZsjSiKZUwtEMLbHLSzXEi1P9WJqXdyukAf1ro5s9Y=",
+        "lastModified": 1787302648,
+        "narHash": "sha256-oYGCsASMqHOxlqexmDxvBNns46M/Vb6NdDlcnVQfeQc=",
         "owner": "nix-community",
         "repo": "NUR",
-        "rev": "bcf9d8f225de8ccf4b0c84565f067050dd2ffda6",
+        "rev": "ea7bfd7f2fbddd25b762f4450270001619af2fc5",
         "type": "github"
       },
       "original": {

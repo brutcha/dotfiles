@@ -81,19 +81,14 @@ let
   # only. The emdashDbSync activation is what actually shapes emdash's
   # behavior for these projects.
 
-  # `.emdash.json` intentionally NOT here: emdash's schema filters it out on
-  # read (preservePatternsSchema.filter(p !== .emdash.json)). Handled via
-  # scripts.setup copy below.
+  # `.emdash.json` filtered out by emdash's schema — handled via scripts.setup.
+  # `.custom*` paths symlinked (not copied) in scripts.setup to avoid drift.
   emdashPreservePatterns = [
     ".env"
     ".env.dev"
     ".env.test"
     ".env.local"
     ".envrc"
-    ".claude/.custom/**"
-    ".claude/.custom-autoload/**"
-    ".codex/.custom/**"
-    ".codex/.custom-autoload/**"
   ];
 
   # Prepended by emdash to every PTY/agent spawn. Without this, Claude spawns
@@ -107,8 +102,17 @@ let
   projectScriptsSetup = project.scriptsSetup or
     "direnv allow . && direnv exec . yarn install --frozen-lockfile";
 
+  # Both `.claude/.custom*` and `.codex/.custom*` symlinked — Claude writes to
+  # the former, repo skills write to the latter. Missing either → real dirs on
+  # first write → drift.
   emdashScriptsSetup =
-    ''cp "$HOME/git/${projectId}/.emdash.json" .emdash.json 2>/dev/null || true; ${projectScriptsSetup}'';
+    ''cp "$HOME/git/${projectId}/.emdash.json" .emdash.json 2>/dev/null || true; ''
+    + ''mkdir -p .claude .codex; ''
+    + ''ln -sfn "$HOME/git/${projectId}/.codex/.custom"          .claude/.custom; ''
+    + ''ln -sfn "$HOME/git/${projectId}/.codex/.custom-autoload" .claude/.custom-autoload; ''
+    + ''ln -sfn "$HOME/git/${projectId}/.codex/.custom"          .codex/.custom; ''
+    + ''ln -sfn "$HOME/git/${projectId}/.codex/.custom-autoload" .codex/.custom-autoload; ''
+    + ''${projectScriptsSetup}'';
 
   emdashConfig = pkgs.writeText ".emdash.json" (builtins.toJSON {
     preservePatterns = emdashPreservePatterns;
