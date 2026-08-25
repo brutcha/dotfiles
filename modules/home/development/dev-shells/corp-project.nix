@@ -107,11 +107,13 @@ let
   # first write → drift.
   emdashScriptsSetup =
     ''cp "$HOME/git/${projectId}/.emdash.json" .emdash.json 2>/dev/null || true; ''
-    + ''mkdir -p .claude .codex; ''
+    + ''mkdir -p .claude/skills .codex; ''
     + ''ln -sfn "$HOME/git/${projectId}/.codex/.custom"          .claude/.custom; ''
     + ''ln -sfn "$HOME/git/${projectId}/.codex/.custom-autoload" .claude/.custom-autoload; ''
     + ''ln -sfn "$HOME/git/${projectId}/.codex/.custom"          .codex/.custom; ''
     + ''ln -sfn "$HOME/git/${projectId}/.codex/.custom-autoload" .codex/.custom-autoload; ''
+    # Claude Code only scans `.claude/skills/` — one leaf symlink per personal skill.
+    + ''for d in "$HOME/git/${projectId}/.claude/skills/"*-custom "$HOME/git/${projectId}/.claude/skills/"custom-*; do [ -d "$d" ] || continue; ln -sfn "$d" ".claude/skills/$(basename "$d")"; done; ''
     + ''${projectScriptsSetup}'';
 
   emdashConfig = pkgs.writeText ".emdash.json" (builtins.toJSON {
