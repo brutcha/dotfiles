@@ -456,6 +456,28 @@ in
       _env_local_sync_${attrSafeId} || true
     '';
 
+  # Symlink personal skills (`.claude/skills/*-custom`, `custom-*`) into every
+  # existing worktree — the emdashScriptsSetup handles new worktrees only.
+  home.activation."personalSkillSync_${attrSafeId}" =
+    lib.hm.dag.entryAfter [ "corpSidecar_${attrSafeId}" ] ''
+      _personal_skill_sync_${attrSafeId}() {
+        local src skillName wt
+        shopt -s nullglob
+        for src in \
+          "$HOME/git/${projectId}/.claude/skills/"*-custom \
+          "$HOME/git/${projectId}/.claude/skills/"custom-*; do
+          [ -d "$src" ] || continue
+          skillName="$(basename "$src")"
+          for wt in "$HOME/emdash/worktrees/${projectId}/emdash/"*/; do
+            [ -d "$wt.claude" ] || continue
+            $DRY_RUN_CMD mkdir -p "$wt.claude/skills"
+            $DRY_RUN_CMD ln -sfn "$src" "$wt.claude/skills/$skillName"
+          done
+        done
+      }
+      _personal_skill_sync_${attrSafeId} || true
+    '';
+
   programs.git.includes = [
     {
       condition = "hasconfig:remote.*.url:**/${projectId}/**";
