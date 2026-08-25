@@ -66,6 +66,7 @@ in
         env = {
           ANTHROPIC_MODEL = "claude-opus-4-7[1m]";
           ANTHROPIC_DEFAULT_SONNET_MODEL = "claude-opus-4-7[1m]";
+          ANTHROPIC_DEFAULT_HAIKU_MODEL = "claude-haiku-4-5";
           NODE_EXTRA_CA_CERTS = "/etc/nix/cert-bundle.pem";
           CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY = "1";
           CLAUDE_CODE_API_KEY_HELPER_TTL_MS = "300000";
@@ -84,6 +85,8 @@ in
             base_url = "$CORP_CODEX_BASE_URL";
             wire_api = "responses";
             supports_websockets = false;
+            api_key = "$CORP_CODEX_API_KEY";
+            http_headers = { "api-key" = "$CORP_CODEX_API_KEY"; };
           };
         };
       };
