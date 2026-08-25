@@ -461,19 +461,30 @@ in
   home.activation."personalSkillSync_${attrSafeId}" =
     lib.hm.dag.entryAfter [ "corpSidecar_${attrSafeId}" ] ''
       _personal_skill_sync_${attrSafeId}() {
-        local src skillName wt
-        shopt -s nullglob
-        for src in \
-          "$HOME/git/${projectId}/.claude/skills/"*-custom \
-          "$HOME/git/${projectId}/.claude/skills/"custom-*; do
-          [ -d "$src" ] || continue
-          skillName="$(basename "$src")"
-          for wt in "$HOME/emdash/worktrees/${projectId}/emdash/"*/; do
-            [ -d "$wt.claude" ] || continue
-            $DRY_RUN_CMD mkdir -p "$wt.claude/skills"
-            $DRY_RUN_CMD ln -sfn "$src" "$wt.claude/skills/$skillName"
+        (
+          shopt -s nullglob
+          local src skillName wt
+          local failures=0
+          for src in \
+            "$HOME/git/${projectId}/.claude/skills/"*-custom \
+            "$HOME/git/${projectId}/.claude/skills/"custom-*; do
+            [ -d "$src" ] || continue
+            skillName="$(basename "$src")"
+            for wt in "$HOME/emdash/worktrees/${projectId}/emdash/"*/; do
+              [ -d "$wt.claude" ] || continue
+              if ! $DRY_RUN_CMD mkdir -p "$wt.claude/skills"; then
+                failures=$((failures + 1))
+                continue
+              fi
+              if ! $DRY_RUN_CMD ln -sfn "$src" "$wt.claude/skills/$skillName"; then
+                failures=$((failures + 1))
+              fi
+            done
           done
-        done
+          if [ "$failures" -gt 0 ]; then
+            echo "warning: personal skill sync had $failures failure(s) for ${projectId}" >&2
+          fi
+        )
       }
       _personal_skill_sync_${attrSafeId} || true
     '';
