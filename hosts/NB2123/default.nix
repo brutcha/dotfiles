@@ -67,6 +67,12 @@
   launchd.user.envVariables.PATH =
     "/etc/profiles/per-user/${config.system.primaryUser}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 
+  # System-wide so `sudo` builtins.fetchGit finds the corp CA (no root HOME).
+  environment.etc."gitconfig".text = ''
+    [http]
+      sslCAInfo = /etc/nix/cert-bundle.pem
+  '';
+
   # Dock — hidden, tiny, instant.
   # https://mynixos.com/nix-darwin/options/system.defaults.dock
   system.defaults.dock = {

@@ -93,7 +93,7 @@ let
 
   # Prepended by emdash to every PTY/agent spawn. Without this, Claude spawns
   # without CLAUDE_CONFIG_DIR set → sessions leak to global ~/.claude/.
-  emdashShellSetup = ''. "$HOME/.local/share/dev-shells/${projectId}/env.sh"'';
+  emdashShellSetup = ''${emdashSetupScript} && . "$HOME/.local/share/dev-shells/${projectId}/env.sh"'';
 
   # scripts.setup runs once at worktree creation. Always prefixed with the
   # `.emdash.json` copy (which emdash's preservePatterns filter drops); then
@@ -105,16 +105,24 @@ let
   # Both `.claude/.custom*` and `.codex/.custom*` symlinked — Claude writes to
   # the former, repo skills write to the latter. Missing either → real dirs on
   # first write → drift.
-  emdashScriptsSetup =
-    ''cp "$HOME/git/${projectId}/.emdash.json" .emdash.json 2>/dev/null || true; ''
-    + ''mkdir -p .claude/skills .codex; ''
-    + ''ln -sfn "$HOME/git/${projectId}/.codex/.custom"          .claude/.custom; ''
-    + ''ln -sfn "$HOME/git/${projectId}/.codex/.custom-autoload" .claude/.custom-autoload; ''
-    + ''ln -sfn "$HOME/git/${projectId}/.codex/.custom"          .codex/.custom; ''
-    + ''ln -sfn "$HOME/git/${projectId}/.codex/.custom-autoload" .codex/.custom-autoload; ''
-    # Claude Code only scans `.claude/skills/` — one leaf symlink per personal skill.
-    + ''for d in "$HOME/git/${projectId}/.claude/skills/"*-custom "$HOME/git/${projectId}/.claude/skills/"custom-*; do [ -d "$d" ] || continue; ln -sfn "$d" ".claude/skills/$(basename "$d")"; done; ''
-    + ''${projectScriptsSetup}'';
+  # Claude Code only scans `.claude/skills/` — one leaf symlink per personal skill.
+  emdashSetupScript = pkgs.writeScript "emdash-worktree-setup-${attrSafeId}" ''
+    #!${pkgs.zsh}/bin/zsh
+    setopt nullglob
+    cp "$HOME/git/${projectId}/.emdash.json" .emdash.json 2>/dev/null || true
+    mkdir -p .claude/skills .codex
+    ln -sfn "$HOME/git/${projectId}/.codex/.custom"          .claude/.custom
+    ln -sfn "$HOME/git/${projectId}/.codex/.custom-autoload" .claude/.custom-autoload
+    ln -sfn "$HOME/git/${projectId}/.codex/.custom"          .codex/.custom
+    ln -sfn "$HOME/git/${projectId}/.codex/.custom-autoload" .codex/.custom-autoload
+    ln -sfn "$HOME/git/${projectId}/.claude/settings.local.json" .claude/settings.local.json
+    for d in "$HOME/git/${projectId}/.claude/skills/"*-custom "$HOME/git/${projectId}/.claude/skills/"custom-*; do
+      [ -d "$d" ] || continue
+      ln -sfn "$d" ".claude/skills/$(basename "$d")"
+    done
+  '';
+
+  emdashScriptsSetup = projectScriptsSetup;
 
   emdashConfig = pkgs.writeText ".emdash.json" (builtins.toJSON {
     preservePatterns = emdashPreservePatterns;
@@ -274,11 +282,29 @@ in
       fi
       $DRY_RUN_CMD rm -f "$_tmpClaude"
 
-      for name in CLAUDE.md RTK.md plugins skills; do
+      for name in CLAUDE.md RTK.md plugins; do
         if [ -e "$HOME/.claude/$name" ]; then
           $DRY_RUN_CMD ln -sfn "$HOME/.claude/$name" "${claudeHomeDir}/$name"
         fi
       done
+
+      # Break any prior blanket symlink to ~/.claude/skills — ln/mkdir would
+      # write through it and leak per-project plugins into the shared dir.
+      if [ -L "${claudeHomeDir}/skills" ]; then
+        $DRY_RUN_CMD rm "${claudeHomeDir}/skills"
+      fi
+      $DRY_RUN_CMD install -d -m 0755 "${claudeHomeDir}/skills"
+      # Prune stale /nix/store symlinks; leave manually-added files alone.
+      for _f in "${claudeHomeDir}/skills"/*; do
+        [ -L "$_f" ] || continue
+        case "$(readlink "$_f")" in
+          /nix/store/*) $DRY_RUN_CMD rm "$_f" ;;
+        esac
+      done 2>/dev/null || true
+${lib.concatMapStringsSep "\n" (p: ''
+      $DRY_RUN_CMD ln -sfn ${lib.escapeShellArg (toString p)} \
+        "${claudeHomeDir}/skills/${baseNameOf (toString p)}"'')
+        (project.claudePlugins or [])}
     ''}
     '';
 

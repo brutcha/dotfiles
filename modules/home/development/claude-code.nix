@@ -11,9 +11,6 @@ let
   cfg = config.home.apps.development.claude-code;
   settingsOverridesJson = builtins.toJSON {
     env = cfg.env;
-    enabledPlugins = {
-      "typescript-lsp@claude-plugins-official" = true;
-    };
     permissions = {
       allow = [ "Bash(rtk *)" ];
     };
@@ -61,17 +58,33 @@ in
       };
     };
 
+    # HM refuses to symlink when a *.backup file exists; claudeCodeSettings
+    # produces a fresh one this run, so any leftover here is stale.
+    home.activation.claudeCodeBackupCleanup =
+      lib.hm.dag.entryBefore [ "checkLinkTargets" ] ''
+        $DRY_RUN_CMD rm -f "$HOME/.claude/settings.json.backup"
+        $DRY_RUN_CMD rm -f "$HOME/.claude/plugins/known_marketplaces.json.backup"
+      '';
+
     home.activation.claudeCodeSettings =
       lib.hm.dag.entryAfter [ "linkGeneration" ] ''
         settingsPath="$HOME/.claude/settings.json"
         $DRY_RUN_CMD mkdir -p "$(dirname "$settingsPath")"
 
-        # Replace a store-symlinked settings.json with a writable copy.
+        # Convert HM's symlink to a writable copy; merge HM's .backup back in
+        # so user keys (hooks, theme, JWT) survive, then drop it.
         if [ -L "$settingsPath" ]; then
           target="$(readlink "$settingsPath")"
           $DRY_RUN_CMD rm "$settingsPath"
           $DRY_RUN_CMD cp "$target" "$settingsPath"
           $DRY_RUN_CMD chmod u+w "$settingsPath"
+          if [ -f "$settingsPath.backup" ]; then
+            tmp="$(mktemp)"
+            ${pkgs.jq}/bin/jq -s '.[0] * .[1]' \
+              "$settingsPath" "$settingsPath.backup" > "$tmp"
+            $DRY_RUN_CMD mv "$tmp" "$settingsPath"
+            $DRY_RUN_CMD rm "$settingsPath.backup"
+          fi
         fi
         [ -f "$settingsPath" ] || echo '{}' > "$settingsPath"
 
