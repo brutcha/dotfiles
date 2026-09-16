@@ -3,10 +3,11 @@
 # Development tools
 #
 # Available options:
-# - home.apps.development.direnv.enable  - per-project shell activation (nix-direnv)
-# - home.apps.development.ghostty.enable - terminal emulator
-# - home.apps.development.lazygit.enable - git TUI
-# - home.apps.development.tmux.enable    - terminal multiplexer
+# - home.apps.development.direnv.enable     - per-project shell activation (nix-direnv)
+# - home.apps.development.ghostty.enable    - terminal emulator
+# - home.apps.development.lazygit.enable    - git TUI
+# - home.apps.development.tmux.enable       - terminal multiplexer
+# - home.apps.development.azure-cli.enable  - Azure Command-Line Interface
 #
 let
   cfg = config.home.apps.development;
@@ -32,6 +33,7 @@ in
       description = "lazygit TUI. Auto-enables when git is enabled.";
     };
     tmux.enable = lib.mkEnableOption "tmux";
+    azure-cli.enable = lib.mkEnableOption "azure-cli";
   };
 
   config = lib.mkMerge [
@@ -64,6 +66,10 @@ in
 
     (lib.mkIf cfg.tmux.enable {
       home.packages = [ pkgs.tmux ];
+    })
+    
+    (lib.mkIf cfg.azure-cli.enable {
+      home.packages = [ pkgs.azure-cli ];
     })
   ];
 }

@@ -1,4 +1,3 @@
-{ config, lib, ... }:
 #
 # Cross-platform applications module aggregator
 #

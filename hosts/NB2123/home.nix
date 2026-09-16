@@ -1,7 +1,7 @@
 #
 # NB2123 home-manager configuration (user-level)
 #
-{ config, lib, pkgs, private, ... }:
+{ config, lib, pkgs, ... }:
 let
   keepassxcCli = pkgs.keepassxc.passthru.cli;
   vaultPath = "${config.home.homeDirectory}/.config/dotfiles/vault.kdbx";
@@ -39,6 +39,7 @@ in
       git.enable = true;
       podman.enable = true;
       zed.enable = true;
+      azure-cli.enable = true;
 
       # Public env only; JWT + base URL injected at activation time from
       # KeePassXC (see home.activation.claudeCodeCorpSecrets below).
