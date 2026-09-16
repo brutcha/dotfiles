@@ -67,8 +67,11 @@
   launchd.user.envVariables.PATH =
     "/etc/profiles/per-user/${config.system.primaryUser}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 
-  # Nix-packaged git has its sysconfdir baked into /nix/store, so it ignores
-  # /etc/gitconfig — mirror the file into root's HOME=/var/root for sudo fetches.
+  # builtins.fetchGit reads the daemon's env, not nix.settings.ssl-cert-file.
+  nix.envVars.NIX_SSL_CERT_FILE = "/etc/nix/cert-bundle.pem";
+
+  # Nix-packaged git's sysconfdir is in /nix/store, so mirror /etc/gitconfig
+  # into HOME=/var/root where git's global-config path resolves under sudo.
   environment.etc."gitconfig".text = ''
     [http]
       sslCAInfo = /etc/nix/cert-bundle.pem
