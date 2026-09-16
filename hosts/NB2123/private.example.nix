@@ -1,14 +1,21 @@
 # Template — copy to ~/.config/dotfiles/private.nix and fill in real values.
-# Consumed by flake.nix via `import` under --impure. Non-secret host metadata
-# only; secrets live in KeePassXC and are extracted at activation time (see
-# home.activation.keepassSecretsExtract in hosts/NB2123/home.nix).
+# Consumed by flake.nix via `import <file> { inherit inputs; }` under --impure.
+{ inputs, ... }:
 let
   corpCaBundle = "/etc/nix/cert-bundle.pem";
-  # Pulled into a let-binding so per-project env can reference the same value
-  # as `user.email` — e.g. CONFLUENCE_USERNAME below.
   corpEmail = "you@corp.example";
+
+  # Plugin source example — corp URLs stay in this untracked file.
+  myMarketplace = builtins.fetchGit {
+    url = "https://dev.azure.com/<org>/<project>/_git/<marketplace-repo>";
+    ref = "main";
+  };
 in
 {
+  # Optional. CN/subject substring for a cert in the macOS System keychain
+  # to append to /etc/nix/cert-bundle.pem at activation.
+  # corpCaKeychainSearch = "<phrase>";
+
   user = {
     name = "Your Full Name";
     email = corpEmail;
@@ -76,6 +83,12 @@ in
           };
         };
       };
+
+      # Plugins loaded when Claude Code runs inside this repo (via direnv).
+      claudePlugins = [
+        "${myMarketplace}/plugins/plugin-name"
+        # "${inputs.claude-plugins-official}/plugins/typescript-lsp"
+      ];
     };
 
     otherProject = {
@@ -87,21 +100,7 @@ in
         #     # Local cache + Yarn 4.1 on Node 22 → EBADF; force global cache back on.
         YARN_ENABLE_GLOBAL_CACHE = "1";
       };
+      claudePlugins = [ ];
     };
-  };
-
-  # Host-global Claude Code plugin marketplaces + plugin picks.
-  claude = {
-    marketplaces = {
-      my-marketplace = {
-        url = "https://dev.azure.com/<org>/<project>/_git/<marketplace-repo>";
-        ref = "main";
-      };
-    };
-    plugins = [
-      # `marketplace` matches an attr key above; `path` is the plugin dir
-      # inside that repo (typically "plugins/<plugin-name>").
-      { marketplace = "my-marketplace"; path = "plugins/plugin-name"; }
-    ];
   };
 }
