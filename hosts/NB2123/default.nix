@@ -67,10 +67,14 @@
   launchd.user.envVariables.PATH =
     "/etc/profiles/per-user/${config.system.primaryUser}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 
-  # System-wide so `sudo` builtins.fetchGit finds the corp CA (no root HOME).
+  # Nix-packaged git has its sysconfdir baked into /nix/store, so it ignores
+  # /etc/gitconfig — mirror the file into root's HOME=/var/root for sudo fetches.
   environment.etc."gitconfig".text = ''
     [http]
       sslCAInfo = /etc/nix/cert-bundle.pem
+  '';
+  system.activationScripts.rootGitConfig.text = ''
+    ln -sfn /etc/gitconfig /var/root/.gitconfig
   '';
 
   # Dock — hidden, tiny, instant.

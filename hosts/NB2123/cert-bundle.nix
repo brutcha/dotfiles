@@ -31,33 +31,37 @@ in
     chown "${user}" "$tmp"
     chmod 0600 "$tmp"
 
-    keychainTmp="$(mktemp)"
-    chown "${user}" "$keychainTmp"
-    chmod 0600 "$keychainTmp"
+    # Base bundle first so consumers have a valid file even if appends fail.
+    mkdir -p /etc/nix
+    cat /etc/ssl/cert.pem > /etc/nix/cert-bundle.pem
+    chmod 0644 /etc/nix/cert-bundle.pem
+
     ${lib.optionalString (corpCaSearch != null) ''
+      keychainTmp="$(mktemp)"
+      chown "${user}" "$keychainTmp"
+      chmod 0600 "$keychainTmp"
       if /usr/bin/security find-certificate -a -c ${lib.escapeShellArg corpCaSearch} \
            -p /Library/Keychains/System.keychain > "$keychainTmp" 2>/dev/null \
            && [ -s "$keychainTmp" ]; then
+        cat "$keychainTmp" >> /etc/nix/cert-bundle.pem
         echo "corp CA: appended '${corpCaSearch}' match from System keychain" >&2
       else
         echo "warn: no cert matched '${corpCaSearch}' in System keychain — bundle will lack it" >&2
-        : > "$keychainTmp"
       fi
+      rm -f "$keychainTmp"
     ''}
 
     if [ ! -f "$vault" ]; then
-      echo "warn: $vault missing — /etc/nix/cert-bundle.pem not updated" >&2
+      echo "warn: $vault missing — KDBX certs not appended to /etc/nix/cert-bundle.pem" >&2
     elif launchctl asuser "${uid}" sudo -u "${user}" \
            ${extractCa} "${user}" "$vault" "$tmp" >/dev/null 2>&1; then
-      mkdir -p /etc/nix
-      cat /etc/ssl/cert.pem "$tmp" "$keychainTmp" > /etc/nix/cert-bundle.pem
-      chmod 0644 /etc/nix/cert-bundle.pem
+      cat "$tmp" >> /etc/nix/cert-bundle.pem
       echo "corp CA: extracted from KDBX, merged into /etc/nix/cert-bundle.pem" >&2
     else
-      echo "warn: could not extract corp/ca-bundle from KDBX — /etc/nix/cert-bundle.pem not updated" >&2
+      echo "warn: could not extract corp/ca-bundle from KDBX — KDBX certs not appended" >&2
     fi
 
-    rm -f "$tmp" "$keychainTmp"
+    rm -f "$tmp"
   '';
 
   # Runs after user (home-manager) activation, so the podman package is
