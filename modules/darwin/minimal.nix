@@ -3,7 +3,7 @@
 #
 # Platform-specific settings for macOS system configuration
 #
-{ lib, pkgs, ... }:
+{ config, lib, ... }:
 {
   imports = [
     ./services/karabiner-elements-fixed.nix
@@ -31,9 +31,9 @@
   nix.optimise.automatic = true;
 
   # Also GC on every darwin-rebuild switch — machine is awake and a delay is expected
-  system.activationScripts.nixGc.text = ''
+  system.activationScripts.extraActivation.text = lib.mkAfter ''
     echo "Collecting nix garbage older than 30d..." >&2
-    ${pkgs.nix}/bin/nix-collect-garbage --delete-older-than 30d
+    ${config.nix.package}/bin/nix-collect-garbage --delete-older-than 30d
   '';
 
   # Re-sign apps copied to /Applications to fix signature issues
