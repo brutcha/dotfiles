@@ -3,7 +3,7 @@
 #
 # Platform-specific settings for macOS system configuration
 #
-{ lib, ... }:
+{ lib, pkgs, ... }:
 {
   imports = [
     ./services/karabiner-elements-fixed.nix
@@ -21,6 +21,20 @@
   # Increment only after reading changelog: darwin-rebuild changelog
   # https://github.com/LnL7/nix-darwin/releases
   system.stateVersion = 6;
+
+  # Weekly garbage collection + store optimisation to reclaim disk
+  nix.gc = {
+    automatic = true;
+    interval = { Weekday = 0; Hour = 3; Minute = 0; };
+    options = "--delete-older-than 30d";
+  };
+  nix.optimise.automatic = true;
+
+  # Also GC on every darwin-rebuild switch — machine is awake and a delay is expected
+  system.activationScripts.nixGc.text = ''
+    echo "Collecting nix garbage older than 30d..." >&2
+    ${pkgs.nix}/bin/nix-collect-garbage --delete-older-than 30d
+  '';
 
   # Re-sign apps copied to /Applications to fix signature issues
   # macOS validates app signatures and nix-copied apps lose their original signatures

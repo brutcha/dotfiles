@@ -199,7 +199,7 @@
           # Per-host private values — template: hosts/NB2123/private.example.nix
           # (nix's pathExists under sudo is unreliable; let `import` fail with a
           # clearer file-not-found message if the file is missing)
-          private = import "/Users/${username}/.config/dotfiles/private.nix" { inherit inputs; };
+          private = import "/Users/${username}/.config/dotfiles/private.nix" { inherit inputs pkgs; };
           pkgs = darwinHosts.mkDarwinPkgs { inherit nixpkgs system helpers rootDir; };
           rootDir = self;
         in
