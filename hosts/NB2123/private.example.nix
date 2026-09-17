@@ -1,6 +1,6 @@
 # Template — copy to ~/.config/dotfiles/private.nix and fill in real values.
-# Consumed by flake.nix via `import <file> { inherit inputs; }` under --impure.
-{ inputs, ... }:
+# Consumed by flake.nix via `import <file> { inherit inputs pkgs; }` under --impure.
+{ inputs, pkgs, ... }:
 let
   corpCaBundle = "/etc/nix/cert-bundle.pem";
   corpEmail = "you@corp.example";
@@ -82,6 +82,16 @@ in
             ADO_MCP_AUTH_TOKEN = "$CORP_AZURE_DEVOPS_MCP";
           };
         };
+        # Python variant via uvx (msmcp-azure → azmcp); REQUESTS_CA_BUNDLE isn't auto-propagated.
+        # azure-devops = {
+        #   type = "stdio";
+        #   command = "${pkgs.uv}/bin/uvx";
+        #   args = [ "--from" "msmcp-azure" "azmcp" "myorg" "--authentication" "envvar" ];
+        #   env = {
+        #     ADO_MCP_AUTH_TOKEN = "$CORP_AZURE_DEVOPS_MCP";
+        #     REQUESTS_CA_BUNDLE = corpCaBundle;
+        #   };
+        # };
       };
 
       # Plugins loaded when Claude Code runs inside this repo (via direnv).

@@ -39,7 +39,6 @@ in
       git.enable = true;
       podman.enable = true;
       zed.enable = true;
-      azure-cli.enable = true;
 
       # Public env only; JWT + base URL injected at activation time from
       # KeePassXC (see home.activation.claudeCodeCorpSecrets below).
