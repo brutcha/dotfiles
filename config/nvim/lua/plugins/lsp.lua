@@ -1,3 +1,61 @@
+local OXLINT_MARKERS = {
+  ".oxlintrc.json",
+  ".oxlintrc.jsonc",
+  "oxlint.config.ts",
+  "oxlint.config.mjs",
+}
+local OXFMT_MARKERS = {
+  ".oxfmtrc.json",
+  ".oxfmtrc.jsonc",
+  "oxfmt.config.ts",
+  "oxfmt.config.mts",
+}
+
+local function find_upward(markers, from)
+  if not from or from == "" or from:match("^%w+://") then
+    return nil
+  end
+  return vim.fs.find(markers, { upward = true, path = from })[1]
+end
+
+local function project_bin(name, from)
+  local nm = find_upward({ "node_modules" }, from)
+  if not nm then
+    return nil
+  end
+  -- Try, in order: the .bin symlink, then the package's own bin (works via
+  -- the node_modules/<name> symlink under any pnpm/bun-style layout).
+  for _, bin in ipairs({
+    nm .. "/.bin/" .. name,
+    nm .. "/" .. name .. "/bin/" .. name,
+  }) do
+    if vim.fn.executable(bin) == 1 then
+      return bin
+    end
+  end
+  return nil
+end
+
+local function buf_path(bufnr)
+  local buf = bufnr and bufnr ~= 0 and bufnr or vim.api.nvim_get_current_buf()
+  return vim.api.nvim_buf_get_name(buf)
+end
+
+local function has_oxfmt(bufnr)
+  local path = buf_path(bufnr)
+  if not find_upward(OXFMT_MARKERS, path) then
+    return false
+  end
+  return project_bin("oxfmt", path) ~= nil
+end
+
+local function js_formatter(bufnr)
+  if has_oxfmt(bufnr) then
+    return { "oxfmt" }
+  end
+  return { "prettierd" }
+end
+
 return {
   {
     "neovim/nvim-lspconfig",
@@ -79,6 +137,31 @@ return {
                 useFlatConfig = true,
               },
             },
+          },
+          -- oxlint attaches only where the project has both an oxlint
+          -- config and a locally-installed binary; otherwise it's silent.
+          oxlint = {
+            cmd = function(dispatchers, config)
+              local bin = project_bin("oxlint", config and config.root_dir)
+                or "oxlint"
+              return vim.lsp.rpc.start({ bin, "--lsp" }, dispatchers)
+            end,
+            filetypes = {
+              "javascript",
+              "javascriptreact",
+              "typescript",
+              "typescriptreact",
+            },
+            root_dir = function(bufnr, on_dir)
+              local path = buf_path(bufnr)
+              local marker = find_upward(OXLINT_MARKERS, path)
+              if not marker then
+                return
+              end
+              if project_bin("oxlint", path) then
+                on_dir(vim.fs.dirname(marker))
+              end
+            end,
           },
           tailwindcss = {},
           marksman = {},
@@ -272,16 +355,23 @@ return {
           args = { "format", "--stdin-filename", "$FILENAME", "-" },
           stdin = true,
         },
+        oxfmt = {
+          command = function(_, ctx)
+            return project_bin("oxfmt", ctx and ctx.filename) or "oxfmt"
+          end,
+          args = { "--stdin-filepath", "$FILENAME" },
+          stdin = true,
+        },
       },
       formatters_by_ft = {
         -- Lua
         lua = { "stylua" },
 
-        -- Web development
-        javascript = { "prettierd" },
-        javascriptreact = { "prettierd" },
-        typescript = { "prettierd" },
-        typescriptreact = { "prettierd" },
+        -- Web development: oxfmt when the project opts in, prettierd otherwise.
+        javascript = js_formatter,
+        javascriptreact = js_formatter,
+        typescript = js_formatter,
+        typescriptreact = js_formatter,
         css = { "prettierd" },
         html = { "prettierd" },
         json = { "prettierd" },
