@@ -2,7 +2,7 @@ local OXLINT_MARKERS = {
   ".oxlintrc.json",
   ".oxlintrc.jsonc",
   "oxlint.config.ts",
-  "oxlint.config.mjs",
+  "oxlint.config.mts",
 }
 local OXFMT_MARKERS = {
   ".oxfmtrc.json",
@@ -153,13 +153,13 @@ return {
               "typescriptreact",
             },
             root_dir = function(bufnr, on_dir)
-              local path = buf_path(bufnr)
-              local marker = find_upward(OXLINT_MARKERS, path)
+              local marker = find_upward(OXLINT_MARKERS, buf_path(bufnr))
               if not marker then
                 return
               end
-              if project_bin("oxlint", path) then
-                on_dir(vim.fs.dirname(marker))
+              local root = vim.fs.dirname(marker)
+              if project_bin("oxlint", root) then
+                on_dir(root)
               end
             end,
           },
