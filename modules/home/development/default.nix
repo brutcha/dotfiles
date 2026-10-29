@@ -17,6 +17,7 @@ in
     ./nvim.nix
     ./claude-code.nix
     ./codex.nix
+    ./opencode.nix
     ./podman.nix
     ./rtk.nix
     ./git.nix

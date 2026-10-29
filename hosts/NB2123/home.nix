@@ -23,6 +23,7 @@ let
     CORP_PHRASE_ACCESS_TOKEN        = "corp/phrase-access-token";
     CORP_FIGMA_ACCESS_TOKEN         = "corp/figma-access-token";
     CORP_DYNATRACE_PAT              = "corp/dynatrace-token";
+    CORP_KAGI_API_KEY               = "corp/kagi-api-key";
   };
 in
 {
@@ -76,6 +77,7 @@ in
           };
         };
       };
+      opencode.enable = true;
     };
 
     internet.helium.enable = true;
@@ -127,6 +129,36 @@ in
       else
         echo "warn: CORP_ANTHROPIC_JWT unset — settings.json not patched" >&2
       fi
+    '';
+
+  # OpenCode's rendered configuration references these files with `{file:...}`.
+  # Keep them out of the Nix store and service environment.
+  home.activation.opencodeCorpSecrets =
+    lib.hm.dag.entryAfter [ "keepassSecretsExtract" "opencodeConfig" ] ''
+      secretDir="$HOME/.local/share/opencode-nix/secrets"
+      install -d -m 0700 "$secretDir"
+      _opencode_secret() {
+        local name="$1" file="$2"
+        if [ -n "''${!name:-}" ]; then
+          # macOS install refuses /dev/stdin after it has been replaced by a
+          # pipe. Write a private sibling first, then atomically replace.
+          local tmp="$secretDir/.$file.tmp.$$"
+          (umask 077; printf '%s' "''${!name}" > "$tmp")
+          $DRY_RUN_CMD mv "$tmp" "$secretDir/$file"
+          $DRY_RUN_CMD chmod 0600 "$secretDir/$file"
+        else
+          echo "warn: $name unset — OpenCode secret $file not updated" >&2
+        fi
+      }
+      _opencode_secret CORP_ANTHROPIC_JWT anthropic-jwt
+      _opencode_secret CORP_ANTHROPIC_BASE_URL anthropic-base-url
+      _opencode_secret CORP_CODEX_API_KEY codex-api-key
+      _opencode_secret CORP_CODEX_BASE_URL codex-base-url
+      _opencode_secret CORP_KAGI_API_KEY kagi-api-key
+
+      # Rewrite the final layer after secrets so a running OpenCode instance
+      # observes the completed activation state on its next reload.
+      touch "$HOME/.local/share/opencode-nix/opencode.json"
     '';
 
   # Resolve `$VAR` refs in ~/.codex/config.toml, then run `codex login`
