@@ -11,8 +11,8 @@
 #
 # `model`, `reasoning`, and `mcpServers` from the typed options always win on
 # merge against `settings`. `_lib.renderConfigToml` is an internal helper that
-# takes an extra mcpServers attrset and returns the merged TOML as a store
-# path — consumers use it to render project-scoped variants.
+# takes extra mcpServers and settings attrsets and returns the merged TOML as a
+# store path — consumers use it to render project-scoped variants.
 #
 let
   cfg = config.home.apps.development.codex;
@@ -83,15 +83,15 @@ let
 
   tomlFormat = pkgs.formats.toml { };
 
-  mkConfigAttrs = extraMcpServers:
-    cfg.settings // {
+  mkConfigAttrs = extraMcpServers: extraSettings:
+    (lib.recursiveUpdate cfg.settings extraSettings) // {
       model = cfg.model;
       model_reasoning_effort = cfg.reasoning;
       mcp_servers = lib.mapAttrs toTomlServer (cfg.mcpServers // extraMcpServers);
     };
 
-  renderConfigToml = extraMcpServers:
-    tomlFormat.generate "codex-config.toml" (mkConfigAttrs extraMcpServers);
+  renderConfigToml = extraMcpServers: extraSettings:
+    tomlFormat.generate "codex-config.toml" (mkConfigAttrs extraMcpServers extraSettings);
 in
 {
   options.home.apps.development.codex = {
@@ -99,7 +99,7 @@ in
 
     model = lib.mkOption {
       type = lib.types.str;
-      default = "gpt-5.5";
+      default = "gpt-6-sol";
       description = "Default model — written as `model = ...` in config.toml.";
     };
 
@@ -131,10 +131,9 @@ in
       readOnly = true;
       default = { inherit renderConfigToml; };
       description = ''
-        Exposes `renderConfigToml : attrsOf mcpServerType -> path`. Returns
-        a store path holding config.toml with the given extras merged over
-        `mcpServers`. `settings`, `model`, and `reasoning` are always taken
-        from the module's own values.
+        Exposes `renderConfigToml : attrsOf mcpServerType -> attrs -> path`.
+        Returns config.toml with project MCP servers and settings merged in.
+        `model` and `reasoning` are always taken from the module's own values.
       '';
     };
   };
@@ -159,7 +158,7 @@ in
         # Guard against a stray CODEX_HOME redirecting the write.
         unset CODEX_HOME
         $DRY_RUN_CMD install -d -m 0700 "$HOME/.codex"
-        $DRY_RUN_CMD install -m 0600 -T ${renderConfigToml { }} "$HOME/.codex/config.toml"
+        $DRY_RUN_CMD install -m 0600 -T ${renderConfigToml { } { }} "$HOME/.codex/config.toml"
       '';
   };
 }

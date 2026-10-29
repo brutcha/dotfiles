@@ -4,6 +4,7 @@
 # still prompt normally.
 {
   security.sudo.extraConfig = lib.mkAfter ''
+    Defaults env_keep += "SSL_CERT_FILE GIT_SSL_CAINFO NIX_SSL_CERT_FILE"
     ${config.system.primaryUser} ALL=(root) NOPASSWD: /run/current-system/sw/bin/nix run nix-darwin/master\#darwin-rebuild -- switch --flake *
   '';
 }

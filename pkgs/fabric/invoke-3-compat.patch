@@ -1,0 +1,25 @@
+--- a/fabric/connection.py
++++ b/fabric/connection.py
+@@ -219,0 +220 @@
++        remainder=None,
+@@ -375 +376 @@
+-        super().__init__(config=config)
++        super().__init__(config=config, remainder=remainder)
+--- a/fabric/tasks.py
++++ b/fabric/tasks.py
+@@ -104,6 +104,4 @@
+-    def make_context(self, config):
+-        kwargs = self.init_kwargs
+-        # TODO: what about corner case of a decorator giving config in a hosts
+-        # kwarg member?! For now let's stomp on it, and then if somebody runs
+-        # into it, we can identify the use case & decide how best to deal.
+-        kwargs["config"] = config
++    def make_context(self, config, core_parse_result):
++        kwargs = dict(
++            self.init_kwargs, config=config, remainder=core_parse_result.remainder
++        )
+--- a/setup.py
++++ b/setup.py
+@@ -67 +67 @@
+-        "invoke >= 2.0, <3.0",
++        "invoke >= 2.0, <4.0",

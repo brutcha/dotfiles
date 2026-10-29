@@ -22,6 +22,7 @@ let
     CORP_WSO2_TECH_PASSWORD_ITG     = "corp/wso2-tech-password-itg";
     CORP_PHRASE_ACCESS_TOKEN        = "corp/phrase-access-token";
     CORP_FIGMA_ACCESS_TOKEN         = "corp/figma-access-token";
+    CORP_DYNATRACE_PAT              = "corp/dynatrace-token";
   };
 in
 {
@@ -34,6 +35,7 @@ in
 
   home.apps = {
     development = {
+      azure-cli.enable = true;
       direnv.enable = true;
       ghostty.enable = true;
       git.enable = true;
@@ -45,8 +47,8 @@ in
       claude-code = {
         enable = true;
         env = {
-          ANTHROPIC_MODEL = "claude-opus-4-7[1m]";
-          ANTHROPIC_DEFAULT_SONNET_MODEL = "claude-opus-4-7[1m]";
+          ANTHROPIC_MODEL = "claude-sonnet-5";
+          ANTHROPIC_DEFAULT_SONNET_MODEL = "claude-sonnet-5";
           ANTHROPIC_DEFAULT_HAIKU_MODEL = "claude-haiku-4-5";
           NODE_EXTRA_CA_CERTS = "/etc/nix/cert-bundle.pem";
           CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY = "1";
@@ -61,12 +63,15 @@ in
         enable = true;
         settings = {
           model_provider = "openai-proxy";
+          features = {
+            api_key_model_discovery = true;
+            daemon_auto_start = true;
+          };
           model_providers.openai-proxy = {
             name = "OpenAI via Node proxy (Codex) -> AID ITG";
             base_url = "$CORP_CODEX_BASE_URL";
             wire_api = "responses";
             supports_websockets = false;
-            api_key = "$CORP_CODEX_API_KEY";
             http_headers = { "api-key" = "$CORP_CODEX_API_KEY"; };
           };
         };

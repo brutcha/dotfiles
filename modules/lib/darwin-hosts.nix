@@ -145,10 +145,18 @@
   # Example:
   #   darwinHosts.mkDarwinPkgs { inherit nixpkgs system helpers rootDir; }
   #
-  mkDarwinPkgs = { nixpkgs, system, helpers, rootDir, allowUnfree ? true, overlays ? [ ] }:
+  mkDarwinPkgs = {
+    nixpkgs,
+    system,
+    helpers,
+    rootDir,
+    allowUnfree ? true,
+    nixpkgsConfig ? { },
+    overlays ? [ ],
+  }:
     import nixpkgs {
       inherit system;
-      config = { inherit allowUnfree; };
+      config = { inherit allowUnfree; } // nixpkgsConfig;
       overlays = [
         (final: prev: {
           fish = prev.fish.overrideAttrs (old: { doCheck = false; });

@@ -67,7 +67,7 @@ in
       mcpServers = {
         atlassian = {
           type = "http";
-          url = "https://mcp.atlassian.com/v1/mcp";
+          url = "https://mcp.atlassian.com/v1/mcp/authv2";
         };
         # DevOps MCP. --authentication envvar reads raw PAT from $ADO_MCP_AUTH_TOKEN
         # (no interactive az login). Note: `env` is a DIFFERENT mode meaning

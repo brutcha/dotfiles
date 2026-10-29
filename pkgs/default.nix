@@ -14,6 +14,7 @@
 # - ungoogled-chromium: Chromium without Google dependencies (macOS custom, Linux uses nixpkgs)
 #
 # Cross-platform packages:
+# - codex: nixpkgs' codex + on-disk package layout for daemon_auto_start (see pkgs/codex)
 # - emdash: Multi-agent dev environment (brew cask on macOS, AppImage on Linux)
 # - zed-editor: Editor (brew cask on macOS — nixpkgs not cached for darwin;
 #   Linux uses nixpkgs version)
@@ -61,6 +62,9 @@ final: prev: {
     if prev.stdenv.hostPlatform.isDarwin
     then prev.callPackage ./android-studio { inherit helpers; }
     else prev.android-studio;
+
+  # explicit `codex = prev.codex` avoids callPackage auto-arg recursion
+  codex = prev.callPackage ./codex { codex = prev.codex; };
 
   emdash = prev.callPackage ./emdash { inherit helpers; };
 

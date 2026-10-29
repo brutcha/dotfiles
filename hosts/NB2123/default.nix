@@ -13,7 +13,7 @@
 #
 # Note: Installation source (Nix vs Homebrew) is abstracted away
 #
-{ config, ... }:
+{ config, pkgs, ... }:
 {
   # Import system modules to compose the configuration
   # Modules are evaluated in order - later ones can override earlier ones
@@ -67,8 +67,21 @@
   launchd.user.envVariables.PATH =
     "/etc/profiles/per-user/${config.system.primaryUser}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 
+  # opencode V2 is vendor-managed (not in nixpkgs); declared here so
+  # homebrew's `cleanup = "zap"` doesn't remove it. Binary name: `opencode`.
+  homebrew.taps = [ "anomalyco/tap" ];
+  homebrew.brews = [ "anomalyco/tap/opencode-v2" ];
+
   # builtins.fetchGit reads the daemon's env, not nix.settings.ssl-cert-file.
   nix.envVars.NIX_SSL_CERT_FILE = "/etc/nix/cert-bundle.pem";
+
+  # git config isn't always reachable under sudo'd nix eval; expose the corp
+  # CA via the env vars OpenSSL / curl / git / nix all fall back to.
+  environment.variables = {
+    SSL_CERT_FILE   = "/etc/nix/cert-bundle.pem";
+    GIT_SSL_CAINFO  = "/etc/nix/cert-bundle.pem";
+    NIX_SSL_CERT_FILE = "/etc/nix/cert-bundle.pem";
+  };
 
   # Nix-packaged git's sysconfdir is in /nix/store, so mirror /etc/gitconfig
   # into HOME=/var/root where git's global-config path resolves under sudo.
@@ -78,6 +91,13 @@
   '';
   system.activationScripts.rootGitConfig.text = ''
     ln -sfn /etc/gitconfig /var/root/.gitconfig
+  '';
+
+  # Prebuilt npm .node binaries hard-code Homebrew's openssl@3 rpath.
+  system.activationScripts.extraActivation.text = ''
+    mkdir -p /opt/homebrew/opt/openssl@3/lib
+    ln -sfn ${pkgs.openssl.out}/lib/libssl.3.dylib /opt/homebrew/opt/openssl@3/lib/libssl.3.dylib
+    ln -sfn ${pkgs.openssl.out}/lib/libcrypto.3.dylib /opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib
   '';
 
   # Dock — hidden, tiny, instant.

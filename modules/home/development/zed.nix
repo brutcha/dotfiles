@@ -57,6 +57,11 @@ in
           claude-acp = {
             type = "registry";
           };
+          opencode-v2 = {
+            type = "custom";
+            command = "/opt/homebrew/bin/opencode";
+            args = [ "acp" ];
+          };
         };
 
         theme = {

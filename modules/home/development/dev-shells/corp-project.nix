@@ -9,12 +9,67 @@ let
 
   codexCfg = config.home.apps.development.codex;
   codexEnabled = codexCfg.enable;
-  codexHomeDir = "${config.home.homeDirectory}/.local/share/dev-shells/${projectId}/codex";
+  # Hashed, not nested under projectId — the app-server control socket lives
+  codexHomeDir = "${config.home.homeDirectory}/.codex-home/${builtins.substring 0 12 (builtins.hashString "sha256" projectId)}";
 
   claudeEnabled = config.home.apps.development.claude-code.enable;
   claudeHomeDir = "${config.home.homeDirectory}/.local/share/dev-shells/${projectId}/claude";
 
   projectMcpServers = project.mcpServers or { };
+  # { "<plugin>@<marketplace>" = { <userConfigKey> = "$CORP_FOO" | "literal"; }; }
+  projectPluginUserConfig = project.pluginUserConfig or { };
+
+  projectClaudePlugins = project.claudePlugins or [];
+  # discardContext: the derived string carries a store-path dependency that
+  # activation strings (non-derivation) aren't allowed to hold.
+  readMarketplaceName = mpPath:
+    builtins.unsafeDiscardStringContext
+      (builtins.fromJSON (builtins.readFile "${mpPath}/.claude-plugin/marketplace.json")).name;
+  readPluginVersion = p:
+    let jp = "${toString p}/plugin.json"; in
+    if builtins.pathExists jp
+    then builtins.unsafeDiscardStringContext
+      ((builtins.fromJSON (builtins.readFile jp)).version or "")
+    else "";
+  mkPluginSpec = p:
+    let
+      mpRoot = dirOf (dirOf (toString p));
+      mpJson = "${mpRoot}/.claude-plugin/marketplace.json";
+    in
+    if builtins.pathExists mpJson then {
+      name = builtins.unsafeDiscardStringContext (baseNameOf (toString p));
+      marketplace = readMarketplaceName mpRoot;
+      id = builtins.unsafeDiscardStringContext
+        "${baseNameOf (toString p)}@${readMarketplaceName mpRoot}";
+      version = readPluginVersion p;
+    } else null;
+  projectClaudePluginSpecs = builtins.filter (s: s != null)
+    (map mkPluginSpec projectClaudePlugins);
+  projectClaudePluginIds = map (s: s.id) projectClaudePluginSpecs;
+  # Read-only fetchGit store path, used only for eval-time metadata reads.
+  projectMarketplaceRoot =
+    if projectClaudePlugins != []
+    then dirOf (dirOf (toString (builtins.head projectClaudePlugins)))
+    else null;
+  projectMarketplaceName =
+    if projectMarketplaceRoot != null
+    then readMarketplaceName projectMarketplaceRoot
+    else null;
+  # Writable mirror (synced in corpSidecar below) that Claude/Codex register against instead.
+  projectMarketplaceInstallRoot =
+    if projectMarketplaceRoot != null
+    then "${config.home.homeDirectory}/.local/share/corp-marketplaces/${projectMarketplaceName}"
+    else null;
+  # Codex uses its own plugin cache and marketplace config. The same local
+  # marketplace is valid for both CLIs, but Claude's installed state is not.
+  codexPluginSettings =
+    if projectClaudePluginIds == [] then { } else {
+      marketplaces.${projectMarketplaceName} = {
+        source_type = "local";
+        source = projectMarketplaceInstallRoot;
+      };
+      plugins = lib.genAttrs projectClaudePluginIds (_: { enabled = true; });
+    };
   # Codex starts stdio MCPs outside direnv; pass only the CA variables.
   projectMcpCertificateEnv = lib.filterAttrs (name: _: builtins.elem name [
     "NODE_EXTRA_CA_CERTS"
@@ -64,6 +119,10 @@ let
   shellHook = ''
     envFile="$HOME/.local/share/dev-shells/${projectId}/env.sh"
     [ -r "$envFile" ] && . "$envFile"
+
+    # Per-direnv prefix — overrides the outer shell's ~/.npm-global.
+    export NPM_CONFIG_PREFIX="$HOME/.local/share/dev-shells/${projectId}/npm-global"
+    export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
   '';
 
   flakeContent = pkgs.replaceVars ./templates/node-project.flake.nix {
@@ -75,11 +134,6 @@ let
 
   envrcContent = pkgs.writeText ".envrc"
     "use flake ~/.local/share/dev-shells/${projectId}\n";
-
-  # Emdash treats its SQLite DB as authoritative post-migration; the
-  # `.emdash.json` file below is for documentation / first-import bootstrap
-  # only. The emdashDbSync activation is what actually shapes emdash's
-  # behavior for these projects.
 
   # `.emdash.json` filtered out by emdash's schema — handled via scripts.setup.
   # `.custom*` paths symlinked (not copied) in scripts.setup to avoid drift.
@@ -95,34 +149,63 @@ let
   # without CLAUDE_CONFIG_DIR set → sessions leak to global ~/.claude/.
   emdashShellSetup = ''${emdashSetupScript} && . "$HOME/.local/share/dev-shells/${projectId}/env.sh"'';
 
-  # scripts.setup runs once at worktree creation. Always prefixed with the
-  # `.emdash.json` copy (which emdash's preservePatterns filter drops); then
-  # the per-project setup from private.nix. Default installs deps if the
-  # project doesn't override.
+  # scripts.setup runs emdashSetupScript first so a fresh worktree gets
+  # .emdash.json + symlinks before shellSetup has anything to attach to.
   projectScriptsSetup = project.scriptsSetup or
     "direnv allow . && direnv exec . yarn install --frozen-lockfile";
 
-  # Both `.claude/.custom*` and `.codex/.custom*` symlinked — Claude writes to
-  # the former, repo skills write to the latter. Missing either → real dirs on
-  # first write → drift.
-  # Claude Code only scans `.claude/skills/` — one leaf symlink per personal skill.
+  # Shared from the base checkout's `.devkit/` once it holds `personal/`.
+  emdashDevkitShared = [
+    "personal"
+    "tasks"
+    "retrospectives"
+    "research"
+    "improvement-tracker.md"
+    "recurring-issues-log.md"
+    "reviewers.json"
+  ];
+
   emdashSetupScript = pkgs.writeScript "emdash-worktree-setup-${attrSafeId}" ''
     #!${pkgs.zsh}/bin/zsh
     setopt nullglob
-    cp "$HOME/git/${projectId}/.emdash.json" .emdash.json 2>/dev/null || true
-    mkdir -p .claude/skills .codex
-    ln -sfn "$HOME/git/${projectId}/.codex/.custom"          .claude/.custom
-    ln -sfn "$HOME/git/${projectId}/.codex/.custom-autoload" .claude/.custom-autoload
-    ln -sfn "$HOME/git/${projectId}/.codex/.custom"          .codex/.custom
-    ln -sfn "$HOME/git/${projectId}/.codex/.custom-autoload" .codex/.custom-autoload
-    ln -sfn "$HOME/git/${projectId}/.claude/settings.local.json" .claude/settings.local.json
-    for d in "$HOME/git/${projectId}/.claude/skills/"*-custom "$HOME/git/${projectId}/.claude/skills/"custom-*; do
-      [ -d "$d" ] || continue
-      ln -sfn "$d" ".claude/skills/$(basename "$d")"
-    done
+    base="$HOME/git/${projectId}"
+    [ "$PWD" -ef "$base" ] && exit 0
+    cp "$base/.emdash.json" .emdash.json 2>/dev/null || true
+    ln -sfn "$base/.claude/settings.local.json" .claude/settings.local.json
+    if [ -d "$base/.devkit/personal" ]; then
+      for p in .claude/.custom .claude/.custom-autoload .codex/.custom .codex/.custom-autoload; do
+        [ -L "$p" ] && rm "$p"
+      done
+      for n in ${lib.escapeShellArgs emdashDevkitShared}; do
+        [ -e "$base/.devkit/$n" ] || continue
+        # A real dir/file here is worktree-local output; the migration script merges it.
+        [ -e ".devkit/$n" ] && [ ! -L ".devkit/$n" ] && continue
+        ln -sfn "$base/.devkit/$n" ".devkit/$n"
+      done
+      mkdir -p .claude/skills .agents/skills
+      for d in "$base/.claude/skills/"*-custom; do
+        [ -d "$d" ] || continue
+        [ -e ".claude/skills/$(basename "$d")" ] || cp -r "$d" ".claude/skills/$(basename "$d")"
+        [ -e ".agents/skills/$(basename "$d")" ] || cp -r "$d" ".agents/skills/$(basename "$d")"
+      done
+    else
+      # Both CLIs need a leaf symlink for each personal skill in their own scan path.
+      mkdir -p .claude/skills .agents/skills
+      for d in "$base/.claude/skills/"*-custom "$base/.claude/skills/"custom-*; do
+        [ -d "$d" ] || continue
+        ln -sfn "$d" ".claude/skills/$(basename "$d")"
+        [ -e ".agents/skills/$(basename "$d")" ] || \
+          ln -sfn "$d" ".agents/skills/$(basename "$d")"
+      done
+      mkdir -p .codex
+      ln -sfn "$base/.codex/.custom"          .claude/.custom
+      ln -sfn "$base/.codex/.custom-autoload" .claude/.custom-autoload
+      ln -sfn "$base/.codex/.custom"          .codex/.custom
+      ln -sfn "$base/.codex/.custom-autoload" .codex/.custom-autoload
+    fi
   '';
 
-  emdashScriptsSetup = projectScriptsSetup;
+  emdashScriptsSetup = ''${emdashSetupScript} && ${projectScriptsSetup}'';
 
   emdashConfig = pkgs.writeText ".emdash.json" (builtins.toJSON {
     preservePatterns = emdashPreservePatterns;
@@ -135,7 +218,7 @@ let
   });
 
   codexProjectConfig =
-    if codexEnabled then codexCfg._lib.renderConfigToml projectMcpServersWithCertificates
+    if codexEnabled then codexCfg._lib.renderConfigToml projectMcpServersWithCertificates codexPluginSettings
     else null;
 in
 {
@@ -216,6 +299,13 @@ in
           fi
         done
       fi
+    ${lib.optionalString (projectMarketplaceRoot != null) ''
+
+      # No --delete: plugin-written files aren't in source and must survive rebuilds.
+      $DRY_RUN_CMD install -d -m 0755 "${projectMarketplaceInstallRoot}"
+      $DRY_RUN_CMD ${pkgs.rsync}/bin/rsync -a --chmod=Du+w,Fu+w \
+        "${projectMarketplaceRoot}/" "${projectMarketplaceInstallRoot}/"
+    ''}
     ${lib.optionalString codexEnabled ''
 
       # envsubst is passed an explicit $CORP_* allowlist so unset refs stay
@@ -294,29 +384,30 @@ in
         $DRY_RUN_CMD rm "${claudeHomeDir}/skills"
       fi
       $DRY_RUN_CMD install -d -m 0755 "${claudeHomeDir}/skills"
-      # Prune stale /nix/store symlinks; leave manually-added files alone.
+      # Prune leftover plugin copies and stale /nix/store symlinks — plugins
+      # now install properly via `claude plugin install`.
       for _f in "${claudeHomeDir}/skills"/*; do
-        [ -L "$_f" ] || continue
-        case "$(readlink "$_f")" in
-          /nix/store/*) $DRY_RUN_CMD rm "$_f" ;;
-        esac
+        if [ -L "$_f" ]; then
+          case "$(readlink "$_f")" in
+            /nix/store/*) $DRY_RUN_CMD rm "$_f" ;;
+          esac
+        elif [ -d "$_f" ] && [ -f "$_f/.nix-source" ]; then
+          $DRY_RUN_CMD rm -rf "$_f"
+        fi
       done 2>/dev/null || true
-${lib.concatMapStringsSep "\n" (p: ''
-      $DRY_RUN_CMD ln -sfn ${lib.escapeShellArg (toString p)} \
-        "${claudeHomeDir}/skills/${baseNameOf (toString p)}"'')
-        (project.claudePlugins or [])}
     ''}
     '';
 
-  # Keep emdash's DB row in sync with the Nix-declared shareable settings.
-  # Function + `|| true` so return-on-skip and sqlite failures (busy, missing
-  # row, missing file) can't cascade into the outer set -e activation.
+  # Keep emdash's DB row in sync with the Nix-declared settings. Personal_config
+  # schema forbids shellSetup, so we sync scripts.setup + preservePatterns only.
+  # Function + `|| true` so return-on-skip and sqlite failures can't cascade
+  # into the outer set -e activation.
   home.activation."emdashDbSync_${attrSafeId}" =
     lib.hm.dag.entryAfter [ "corpSidecar_${attrSafeId}" ] ''
       _emdash_db_sync_${attrSafeId}() {
-        local db projRow expected_pp expected_ss expected_scripts_setup
-        local projPath projPathSql ss_sql scripts_sql current expected changed
-        db="$HOME/Library/Application Support/emdash/emdash4.db"
+        local db projPath projPathSql wsId currentPc newPc newPcSql changed
+        local expected_pp expected_scripts_setup
+        db="$HOME/Library/Application Support/emdash/workspace-registry.db"
         [ -f "$db" ] || return 0
 
         # Doubles apostrophes for SQL single-quoted literals.
@@ -327,53 +418,49 @@ ${lib.concatMapStringsSep "\n" (p: ''
         projPath="$HOME/git/${projectId}"
         projPathSql="$(_sqlq "$projPath")"
 
-        projRow="$(${pkgs.sqlite}/bin/sqlite3 "$db" \
-          "SELECT id FROM projects WHERE path = '$projPathSql';" \
+        wsId="$(${pkgs.sqlite}/bin/sqlite3 "$db" \
+          "SELECT id FROM workspace_records WHERE path = '$projPathSql' AND kind = 'repository';" \
           2>/dev/null)" || return 0
-        [ -n "$projRow" ] || return 0
+        [ -n "$wsId" ] || return 0
 
         expected_pp='${builtins.toJSON emdashPreservePatterns}'
-        expected_ss=${lib.escapeShellArg emdashShellSetup}
         expected_scripts_setup=${lib.escapeShellArg emdashScriptsSetup}
-        ss_sql="$(_sqlq "$expected_ss")"
-        scripts_sql="$(_sqlq "$expected_scripts_setup")"
 
-        current="$(${pkgs.sqlite}/bin/sqlite3 "$db" \
-          "SELECT json_object(
-                   'preservePatterns', json_extract(shareable_project_settings_json, '\$.preservePatterns'),
-                   'shellSetup',       json_extract(shareable_project_settings_json, '\$.shellSetup'),
-                   'scriptsSetup',     json_extract(shareable_project_settings_json, '\$.scripts.setup'))
-           FROM project_settings WHERE project_id = '$projRow';" \
+        currentPc="$(${pkgs.sqlite}/bin/sqlite3 "$db" \
+          "SELECT COALESCE(personal_config, ''') FROM workspace_records WHERE id = '$(_sqlq "$wsId")';" \
           2>/dev/null)" || return 0
-        expected="$(${pkgs.jq}/bin/jq -cn \
+        [ -n "$currentPc" ] || currentPc='{}'
+
+        # Preserves user-set env / autoRun* / other script slots in .value.
+        if ! newPc="$(printf '%s' "$currentPc" | ${pkgs.jq}/bin/jq -c \
           --argjson pp "$expected_pp" \
-          --arg ss "$expected_ss" \
-          --arg ssu "$expected_scripts_setup" \
-          '{preservePatterns:$pp, shellSetup:$ss, scriptsSetup:$ssu}')"
-        [ "$current" = "$expected" ] && return 0
+          --arg su "$expected_scripts_setup" \
+          '{version: "2",
+            value: ((.value // {})
+                    | .preservePatterns = $pp
+                    | .scripts = ((.scripts // {}) | .setup = $su))}')"; then
+          echo "warn: emdash DB sync for ${projectId} could not parse existing personal_config — skipping" >&2
+          return 0
+        fi
+
+        [ "$newPc" = "$currentPc" ] && return 0
 
         # This activation only reaches this line on darwin (the DB check
         # above short-circuits on Linux — emdash's app-support path is mac-
         # specific), so /usr/bin/pgrep is safe to hardcode.
-        if /usr/bin/pgrep -qf '/Applications/emdash.app'; then
+        if /usr/bin/pgrep -qf '/Applications/[Ee]mdash.app'; then
           echo "warn: emdash running during ${projectId} DB sync — quit + rebuild if the new values don't stick" >&2
         fi
-        # COALESCE guards against a NULL shareable_project_settings_json
-        # (json_set on NULL returns NULL — would blank the field). SELECT
-        # changes() reports the affected-row count so a projects-row-exists-
-        # but-project_settings-row-doesn't case doesn't report success.
-        local sql="UPDATE project_settings
-                   SET shareable_project_settings_json =
-                         json_set(COALESCE(shareable_project_settings_json, '{}'),
-                                  '\$.preservePatterns', json('$expected_pp'),
-                                  '\$.shellSetup',       '$ss_sql',
-                                  '\$.scripts.setup',    '$scripts_sql'),
-                       updated_at = datetime('now')
-                   WHERE project_id = '$projRow';
+
+        newPcSql="$(_sqlq "$newPc")"
+        # Bump updated_at (epoch millis) so emdash's in-memory cache invalidates.
+        local sql="UPDATE workspace_records
+                   SET personal_config = '$newPcSql',
+                       updated_at = (strftime('%s','now') * 1000)
+                   WHERE id = '$(_sqlq "$wsId")';
                    SELECT changes();"
 
         if [ -n "''${DRY_RUN_CMD:-}" ]; then
-          # Dry-run: report what would happen, skip the changes-check.
           $DRY_RUN_CMD ${pkgs.sqlite}/bin/sqlite3 "$db" "$sql"
           return 0
         fi
@@ -383,10 +470,10 @@ ${lib.concatMapStringsSep "\n" (p: ''
           return 0
         fi
         if [ "$changed" != "1" ]; then
-          echo "warn: emdash DB sync for ${projectId} affected $changed rows (no project_settings row?) — will retry on next rebuild" >&2
+          echo "warn: emdash DB sync for ${projectId} affected $changed rows — will retry on next rebuild" >&2
           return 0
         fi
-        echo "emdash: synced ${projectId} shareable settings" >&2
+        echo "emdash: synced ${projectId} personal settings" >&2
       }
       _emdash_db_sync_${attrSafeId} || true
     '';
@@ -405,9 +492,12 @@ ${lib.concatMapStringsSep "\n" (p: ''
         [ -n "$managedKeys" ] || return 0
 
         shopt -s nullglob
+        # Two worktree layouts: pre-1.2.6 `<project>/emdash/<name>/` and
+        # 1.2.6+ `<project>-<hash>/emdash-<name>/`. Both may coexist.
         for envLocalPath in \
           "$HOME/git/${projectId}/.env.local" \
-          "$HOME/emdash/worktrees/${projectId}/emdash/"*/.env.local; do
+          "$HOME/emdash/worktrees/${projectId}/emdash/"*/.env.local \
+          "$HOME/emdash/worktrees/${projectId}-"*/emdash-*/.env.local; do
           [ -f "$envLocalPath" ] || continue
 
           # install -T would rename over the target — a symlinked .env.local
@@ -482,38 +572,147 @@ ${lib.concatMapStringsSep "\n" (p: ''
       _env_local_sync_${attrSafeId} || true
     '';
 
-  # Symlink personal skills (`.claude/skills/*-custom`, `custom-*`) into every
-  # existing worktree — the emdashScriptsSetup handles new worktrees only.
-  home.activation."personalSkillSync_${attrSafeId}" =
-    lib.hm.dag.entryAfter [ "corpSidecar_${attrSafeId}" ] ''
-      _personal_skill_sync_${attrSafeId}() {
-        (
-          shopt -s nullglob
-          local src skillName wt
-          local failures=0
-          for src in \
-            "$HOME/git/${projectId}/.claude/skills/"*-custom \
-            "$HOME/git/${projectId}/.claude/skills/"custom-*; do
-            [ -d "$src" ] || continue
-            skillName="$(basename "$src")"
-            for wt in "$HOME/emdash/worktrees/${projectId}/emdash/"*/; do
-              [ -d "$wt.claude" ] || continue
-              if ! $DRY_RUN_CMD mkdir -p "$wt.claude/skills"; then
-                failures=$((failures + 1))
-                continue
-              fi
-              if ! $DRY_RUN_CMD ln -sfn "$src" "$wt.claude/skills/$skillName"; then
-                failures=$((failures + 1))
-              fi
-            done
-          done
-          if [ "$failures" -gt 0 ]; then
-            echo "warning: personal skill sync had $failures failure(s) for ${projectId}" >&2
+  # Populate Codex's per-project plugin cache from the marketplace already
+  # declared in its generated config.toml. `plugin add` refreshes an existing
+  # install when the marketplace version changes.
+  home.activation."codexPluginSync_${attrSafeId}" =
+    lib.hm.dag.entryAfter [ "corpSidecar_${attrSafeId}" ] (
+      lib.optionalString (codexEnabled && projectClaudePluginIds != []) ''
+      (
+        export CODEX_HOME="${codexHomeDir}"
+        codexBin="${pkgs.codex}/bin/codex"
+        ${lib.concatMapStringsSep "\n" (pluginId: ''
+          $DRY_RUN_CMD "$codexBin" plugin add ${lib.escapeShellArg pluginId} --json >/dev/null \
+            || echo "warn: codex plugin add ${pluginId} failed" >&2
+        '') projectClaudePluginIds}
+      )
+    '');
+
+  # Patch known_marketplaces.json to the current fetchGit path (otherwise
+  # Claude pins to the first-registered store path), then `plugin install`
+  # each entry at user scope — idempotent, applies userConfig on the way.
+  home.activation."claudePluginSync_${attrSafeId}" =
+    lib.hm.dag.entryAfter [ "corpSidecar_${attrSafeId}" ] (
+      lib.optionalString (claudeEnabled && projectClaudePluginIds != []) ''
+      _claude_plugin_sync_${attrSafeId}() {
+        local claudeBin envFile kmJson tmp
+        # Absolute path — activation PATH doesn't include ~/.nix-profile so `command -v claude` returns empty and the sync silently no-ops.
+        claudeBin="${config.programs.claude-code.package}/bin/claude"
+        [ -x "$claudeBin" ] || return 0
+        export CLAUDE_CONFIG_DIR="${claudeHomeDir}"
+
+        kmJson="${claudeHomeDir}/plugins/known_marketplaces.json"
+        if [ -f "$kmJson" ]; then
+          tmp="$(mktemp)"
+          ${pkgs.jq}/bin/jq \
+            --arg n ${lib.escapeShellArg projectMarketplaceName} \
+            --arg p ${lib.escapeShellArg projectMarketplaceInstallRoot} \
+            '.[$n].source.path = $p | .[$n].installLocation = $p' \
+            "$kmJson" > "$tmp"
+          if ! ${pkgs.diffutils}/bin/cmp -s "$tmp" "$kmJson"; then
+            $DRY_RUN_CMD install -m 0644 -T "$tmp" "$kmJson"
           fi
+          $DRY_RUN_CMD rm -f "$tmp"
+        fi
+
+        # Prune stale `extraKnownMarketplaces` entries in ~/.claude/settings.json — nix-store paths there pin to an old fetchGit result and duplicate what we patch into known_marketplaces.json, giving Claude two "same-name" marketplaces and a stale plugin-panel version.
+        _settingsJson="$HOME/.claude/settings.json"
+        if [ -f "$_settingsJson" ]; then
+          _tmp="$(mktemp)"
+          ${pkgs.jq}/bin/jq '
+            if (.extraKnownMarketplaces | type) == "object" then
+              .extraKnownMarketplaces |= (
+                to_entries
+                | map(select(
+                    (.value.source.source != "directory")
+                    or ((.value.source.path // "") | startswith("/nix/store/") | not)
+                  ))
+                | from_entries
+              )
+              | if .extraKnownMarketplaces == {} then del(.extraKnownMarketplaces) else . end
+            else . end' "$_settingsJson" > "$_tmp"
+          if ! ${pkgs.diffutils}/bin/cmp -s "$_tmp" "$_settingsJson"; then
+            $DRY_RUN_CMD install -m 0600 -T "$_tmp" "$_settingsJson"
+          fi
+          $DRY_RUN_CMD rm -f "$_tmp"
+        fi
+
+        # Refresh plugin-catalog-cache.json — `plugin update` reads the cached catalog, so stale entries here mask new marketplace versions.
+        $DRY_RUN_CMD "$claudeBin" plugin marketplace update ${lib.escapeShellArg projectMarketplaceName} >/dev/null 2>&1 || true
+
+        envFile="$HOME/.local/share/dev-shells/${projectId}/env.sh"
+        # Subshell keeps sourced CORP_* refs out of the outer activation env.
+        (
+          set +u
+          [ -f "$envFile" ] && . "$envFile" 2>/dev/null
+
+          ${lib.concatMapStringsSep "\n" (spec:
+            let pluginId = spec.id;
+                pluginName = spec.name;
+                marketplaceName = spec.marketplace;
+                expectedVersion = spec.version;
+                cachePrefix = "${claudeHomeDir}/plugins/cache/${marketplaceName}/${pluginName}/";
+                newInstallPath = "${cachePrefix}${expectedVersion}";
+                cfg = projectPluginUserConfig.${pluginId} or {};
+                argLines = lib.concatMapStringsSep "\n" (key:
+                  let v = cfg.${key}; in
+                    if isCorpRef v then
+                      let varName = builtins.substring 1 (builtins.stringLength v) v; in ''
+                        if [ -n "''${${varName}+set}" ]; then
+                          _cfg+=( --config ${lib.escapeShellArg "${key}="}"''${${varName}}" )
+                        else
+                          echo "warn: env var ${varName} unset — skipping ${pluginId}.${key} sync" >&2
+                          _skip=1
+                        fi
+                      ''
+                    else
+                      ''_cfg+=( --config ${lib.escapeShellArg "${key}=${v}"} )''
+                ) (builtins.attrNames cfg);
+            in ''
+              _cfg=()
+              _skip=0
+              ${argLines}
+              if [ "$_skip" = 0 ]; then
+                # `plugin install` never upgrades in place; `update` is idempotent (no-op when at latest or not installed).
+                $DRY_RUN_CMD "$claudeBin" plugin update ${lib.escapeShellArg pluginId} \
+                  -s user -y >/dev/null 2>&1 || true
+                # Install runs after update to (re)apply --config — update has no --config flag.
+                $DRY_RUN_CMD "$claudeBin" plugin install ${lib.escapeShellArg pluginId} \
+                  -s user -y "''${_cfg[@]}" --json >/dev/null 2>&1 \
+                  || echo "warn: claude plugin install ${pluginId} failed" >&2
+
+                # Bump stale local/project-scope pins under this project's cache — both win over user scope, so old worktree pins mask the fresh user-scope version.
+                _installedJson="${claudeHomeDir}/plugins/installed_plugins.json"
+                if [ -n ${lib.escapeShellArg expectedVersion} ] \
+                    && [ -d ${lib.escapeShellArg newInstallPath} ] \
+                    && [ -f "$_installedJson" ]; then
+                  _tmp=$(${pkgs.coreutils}/bin/mktemp)
+                  ${pkgs.jq}/bin/jq \
+                    --arg id ${lib.escapeShellArg pluginId} \
+                    --arg v ${lib.escapeShellArg expectedVersion} \
+                    --arg np ${lib.escapeShellArg newInstallPath} \
+                    --arg prefix ${lib.escapeShellArg cachePrefix} \
+                    '.plugins[$id] |= (map(
+                      if (.scope == "local" or .scope == "project")
+                          and (.version != $v)
+                          and ((.installPath // "") | startswith($prefix))
+                      then .version = $v
+                         | .installPath = $np
+                         | .lastUpdated = (now | todateiso8601)
+                      else . end))' \
+                    "$_installedJson" > "$_tmp"
+                  if ! ${pkgs.diffutils}/bin/cmp -s "$_tmp" "$_installedJson"; then
+                    $DRY_RUN_CMD install -m 0644 -T "$_tmp" "$_installedJson"
+                  fi
+                  $DRY_RUN_CMD rm -f "$_tmp"
+                fi
+              fi
+            ''
+          ) projectClaudePluginSpecs}
         )
       }
-      _personal_skill_sync_${attrSafeId} || true
-    '';
+      _claude_plugin_sync_${attrSafeId} || true
+    '');
 
   programs.git.includes = [
     {
