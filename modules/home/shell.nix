@@ -3,7 +3,7 @@
 #
 # This module is platform-agnostic and works with home-manager on macOS and Linux
 #
-{ pkgs, lib, ... }:
+{ config, pkgs, lib, ... }:
 {
   # Shell utilities and tools
   # Installs CLI tools that enhance shell productivity and provide modern alternatives to standard Unix commands.
@@ -106,10 +106,11 @@
         la = "eza --all";
         lla = "eza --long --all";
         llt = "eza --long --tree";
-        wmux = "tmux new-session -A -s workmux";
         find = "fd --color never";
         grep = "rg -uuu";
         top = "btm";
+      } // lib.optionalAttrs config.home.apps.development.tmux.enable {
+        wmux = "tmux new-session -A -s workmux";
       };
     };
   };

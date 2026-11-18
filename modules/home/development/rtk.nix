@@ -33,6 +33,15 @@ in
   config = lib.mkIf cfg.enable {
     home.packages = [ pkgs.rtk ];
 
+    home.file.".config/opencode/RTK.md" = lib.mkIf (opencodeEnabled && !claudeEnabled) {
+      text = ''
+        # RTK
+
+        RTK is enabled for OpenCode and rewrites shell commands through its
+        OpenCode adapter before execution.
+      '';
+    };
+
     home.activation.rtkInit = lib.mkIf claudeEnabled
       (lib.hm.dag.entryAfter [ "claudeCodeSettings" "installPackages" ] ''
         _rtk_init() {
@@ -50,7 +59,7 @@ in
 
     home.activation.rtkOpenCodeAdapter = lib.mkIf opencodeEnabled
       (lib.hm.dag.entryAfter [ "installPackages" ] ''
-        install -d -m 0700 ${lib.escapeShellArg opencodePluginDir}
+        $DRY_RUN_CMD install -d -m 0700 ${lib.escapeShellArg opencodePluginDir}
         if [ ! -f ${lib.escapeShellArg opencodeAdapterPath} ] || ! ${pkgs.diffutils}/bin/cmp -s ${opencodeAdapter} ${lib.escapeShellArg opencodeAdapterPath}; then
           adapter_tmp=${lib.escapeShellArg opencodeAdapterPath}.tmp.$$
           $DRY_RUN_CMD install -m 0600 ${opencodeAdapter} "$adapter_tmp"

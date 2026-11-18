@@ -76,11 +76,21 @@ materialize_env(sidecar / "env.sh", spec["environment"])
 
 repository = pathlib.Path(spec["repositoryDirectory"])
 if repository.is_dir():
-    for name in (".emdash.json", ".envrc"):
-        destination = repository / name
-        if destination.is_symlink():
-            destination.unlink()
-        copy_if_changed(sidecar / name, destination, 0o644)
+    emdash = repository / ".emdash.json"
+    if emdash.is_symlink():
+        emdash.unlink()
+    copy_if_changed(sidecar / ".emdash.json", emdash, 0o644)
+
+    envrc = repository / ".envrc"
+    if envrc.is_symlink():
+        print(f"warn: preserving user-owned {envrc} symlink", file=os.sys.stderr)
+    elif (
+        envrc.exists()
+        and envrc.read_bytes() != (sidecar / ".envrc").read_bytes()
+    ):
+        print(f"warn: preserving user-owned {envrc}", file=os.sys.stderr)
+    else:
+        copy_if_changed(sidecar / ".envrc", envrc, 0o644)
 
     workmux = repository / ".workmux.yaml"
     old_hook = ".local/share/workmux-trial/npa-worktree-bootstrap.sh"

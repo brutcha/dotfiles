@@ -17,11 +17,15 @@ args = parser.parse_args()
 
 environment = os.environ | {"CODEX_HOME": args.home}
 for plugin in args.plugins:
-    result = subprocess.run(
-        [args.codex, "plugin", "add", plugin, "--json"],
-        env=environment,
-        stdout=subprocess.DEVNULL,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [args.codex, "plugin", "add", plugin, "--json"],
+            env=environment,
+            stdout=subprocess.DEVNULL,
+            check=False,
+        )
+    except OSError as error:
+        print(f"warn: codex plugin add {plugin} could not start: {error}", file=os.sys.stderr)
+        continue
     if result.returncode:
         print(f"warn: codex plugin add {plugin} failed", file=os.sys.stderr)

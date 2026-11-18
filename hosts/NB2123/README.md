@@ -36,6 +36,7 @@ Symlink the corp KDBX at `~/.config/dotfiles/vault.kdbx` (typical: OneDrive-sync
 | `corp/azure-devops-release-token` | Password | Azure DevOps release-deploy PAT |
 | `corp/codex-api-key` | Password | Personal WSO2 apiKey for the Codex proxy |
 | `corp/codex-base-url` | Password | Codex proxy URL (e.g. `https://proxy.corp/v1/codex`) |
+| `corp/kagi-api-key` | Password | Kagi API key for the shared OpenCode MCP |
 | `corp/ca-bundle` | Attachment `ca.pem` | Corp internal CA in PEM format |
 
 ```bash
@@ -48,6 +49,7 @@ keepassxc-cli add -p "$DB" corp/azure-devops-npmrc
 keepassxc-cli add -p "$DB" corp/azure-devops-release-token
 keepassxc-cli add -p "$DB" corp/codex-api-key
 keepassxc-cli add -p "$DB" corp/codex-base-url
+keepassxc-cli add -p "$DB" corp/kagi-api-key
 keepassxc-cli add "$DB" corp/ca-bundle
 keepassxc-cli attachment-import "$DB" corp/ca-bundle ca.pem /path/to/corp-ca.pem
 ```

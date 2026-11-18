@@ -29,12 +29,14 @@ parser.add_argument("--marketplace", required=True)
 parser.add_argument("--marketplace-directory", required=True)
 parser.add_argument("--settings-file", required=True)
 parser.add_argument("--spec", required=True)
+parser.add_argument("--repository-directory", required=True)
 args = parser.parse_args()
 
 claude = pathlib.Path(args.claude)
 config_directory = pathlib.Path(args.config_directory)
 marketplace_directory = pathlib.Path(args.marketplace_directory)
 settings_file = pathlib.Path(args.settings_file)
+repository_directory = pathlib.Path(args.repository_directory)
 spec = read_json(pathlib.Path(args.spec))
 if not claude.is_file() or not os.access(claude, os.X_OK) or not isinstance(spec, list):
     raise SystemExit(0)
@@ -111,6 +113,7 @@ for plugin in spec:
                     if (
                         isinstance(entry, dict)
                         and entry.get("scope") in {"local", "project"}
+                        and entry.get("projectPath") == str(repository_directory)
                         and entry.get("version") != version
                         and str(entry.get("installPath", "")).startswith(f"{cache_prefix}/")
                     ):

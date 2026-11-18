@@ -40,7 +40,13 @@ try:
         )
         raise SystemExit(0)
 
+    if not isinstance(current, dict) or not isinstance(current.get("value", {}), dict):
+        print("warn: emdash DB sync found malformed personal_config — skipping")
+        raise SystemExit(0)
     value = current.setdefault("value", {})
+    if not isinstance(value.get("scripts", {}), dict):
+        print("warn: emdash DB sync found malformed personal_config — skipping")
+        raise SystemExit(0)
     value["preservePatterns"] = json.loads(args.preserve_patterns)
     value.setdefault("scripts", {})["setup"] = args.setup_script
     current["version"] = "2"

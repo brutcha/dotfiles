@@ -41,6 +41,8 @@ for raw_path in args.paths:
     for key in sorted(keys - seen):
         value = os.environ.get(key)
         if value and "\n" not in value and "\r" not in value:
+            if output and not output[-1].endswith(("\n", "\r")):
+                output.append("\n")
             output.append(f"{key}={value}\n")
             changed = True
     if changed:

@@ -14,7 +14,9 @@ let
   configPath = "${stateDirectory}/opencode.json";
   servicePath = "${home}/.config/opencode/service.json";
   rtkEnabled = config.home.apps.development.rtk.enable;
-  rtkInstruction = "${home}/.claude/RTK.md";
+  rtkInstruction = if config.home.apps.development.claude-code.enable
+    then "${home}/.claude/RTK.md"
+    else "${home}/.config/opencode/RTK.md";
   baseConfiguration = {
     "$schema" = "https://opencode.ai/config.json";
     update = "notify";
@@ -89,7 +91,7 @@ in
       };
 
       home.activation.opencodeConfig = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-        install -d -m 0700 "${stateDirectory}" "$HOME/.config/opencode/plugins"
+        $DRY_RUN_CMD install -d -m 0700 "${stateDirectory}" "$HOME/.config/opencode/plugins" "$HOME/.local/state/opencode"
         $DRY_RUN_CMD install -m 0600 ${configuration} "${configPath}"
 
         if [ ! -e "$HOME/.config/opencode/opencode.json" ]; then

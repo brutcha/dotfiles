@@ -14,9 +14,21 @@ import tempfile
 path = pathlib.Path(os.environ["OPENCODE_SERVICE_PATH"])
 owned = json.loads(os.environ["OPENCODE_SERVICE_ENV"])
 
-try:
-    existing = json.loads(path.read_text()) if path.exists() else {}
-except json.JSONDecodeError:
+if path.exists():
+    try:
+        existing = json.loads(path.read_text())
+    except json.JSONDecodeError:
+        print(
+            f"warn: {path} is malformed — preserving it", file=os.sys.stderr
+        )
+        raise SystemExit(0)
+    if not isinstance(existing, dict):
+        print(
+            f"warn: {path} is not a JSON object — preserving it",
+            file=os.sys.stderr,
+        )
+        raise SystemExit(0)
+else:
     existing = {}
 
 environment = (
@@ -27,8 +39,11 @@ existing["env"] = environment
 
 path.parent.mkdir(parents=True, exist_ok=True)
 fd, temporary_path = tempfile.mkstemp(prefix="service.json.", dir=path.parent)
-with os.fdopen(fd, "w") as output:
-    json.dump(existing, output, indent=2)
-    output.write("\n")
-os.chmod(temporary_path, 0o600)
-os.replace(temporary_path, path)
+try:
+    with os.fdopen(fd, "w") as output:
+        json.dump(existing, output, indent=2)
+        output.write("\n")
+    os.chmod(temporary_path, 0o600)
+    os.replace(temporary_path, path)
+finally:
+    pathlib.Path(temporary_path).unlink(missing_ok=True)

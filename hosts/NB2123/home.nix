@@ -137,7 +137,7 @@ in
             };
             playwright = {
               type = "local";
-              command = [ "yarn" "dlx" "@playwright/mcp@latest" "--headless" ];
+              command = [ "${pkgs.yarn-berry}/bin/yarn" "dlx" "@playwright/mcp@latest" "--headless" ];
               codemode = false;
             };
           };
@@ -212,9 +212,10 @@ in
   # Keep them out of the Nix store and service environment.
   home.activation.opencodeCorpSecrets =
     lib.hm.dag.entryAfter [ "keepassSecretsExtract" "opencodeConfig" ] ''
-      secretDir="$HOME/.local/share/opencode-nix/secrets"
-      install -d -m 0700 "$secretDir"
-      _opencode_secret() {
+      if [ -z "''${DRY_RUN:-}" ]; then
+        secretDir="$HOME/.local/share/opencode-nix/secrets"
+        install -d -m 0700 "$secretDir"
+        _opencode_secret() {
         local name="$1" file="$2"
         if [ -n "''${!name:-}" ]; then
           # macOS install refuses /dev/stdin after it has been replaced by a
@@ -226,28 +227,30 @@ in
         else
           echo "warn: $name unset — OpenCode secret $file not updated" >&2
         fi
-      }
-      _opencode_secret CORP_ANTHROPIC_JWT anthropic-jwt
-      _opencode_secret CORP_ANTHROPIC_BASE_URL anthropic-base-url
-      _opencode_secret CORP_CODEX_API_KEY codex-api-key
-      _opencode_secret CORP_CODEX_BASE_URL codex-base-url
-      _opencode_secret CORP_KAGI_API_KEY kagi-api-key
+        }
+        _opencode_secret CORP_ANTHROPIC_JWT anthropic-jwt
+        _opencode_secret CORP_ANTHROPIC_BASE_URL anthropic-base-url
+        _opencode_secret CORP_CODEX_API_KEY codex-api-key
+        _opencode_secret CORP_CODEX_BASE_URL codex-base-url
+        _opencode_secret CORP_KAGI_API_KEY kagi-api-key
 
-      # Rewrite the final layer after secrets so a running OpenCode instance
-      # observes the completed activation state on its next reload.
-      touch "$HOME/.local/share/opencode-nix/opencode.json"
+        # Rewrite the final layer after secrets so a running OpenCode instance
+        # observes the completed activation state on its next reload.
+        touch "$HOME/.local/share/opencode-nix/opencode.json"
+      fi
     '';
 
   home.activation.opencodeDevkitPort =
     lib.hm.dag.entryAfter [ "opencodeConfig" "rtkOpenCodeAdapter" ] ''
-      install -d -m 0700 "$HOME/.cache/opencode-devkit-port/node_modules"
-      if [ ! -e "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/node_modules" ]; then
-        $DRY_RUN_CMD ln -s "$HOME/.cache/opencode-devkit-port/node_modules" \
+      if [ -z "''${DRY_RUN:-}" ]; then
+        install -d -m 0700 "$HOME/.cache/opencode-devkit-port/node_modules"
+        if [ ! -e "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/node_modules" ] || [ -L "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/node_modules" ]; then
+          ln -sfn "$HOME/.cache/opencode-devkit-port/node_modules" \
           "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/node_modules"
-      fi
-      $DRY_RUN_CMD ln -sfn "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/shim/opencode-plugin.ts" \
+        fi
+        ln -sfn "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/shim/opencode-plugin.ts" \
         "$HOME/.config/opencode/plugins/npa-hook-compat.ts"
-      $DRY_RUN_CMD ln -sfn "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/shim/compaction-overlay-state.mjs" \
+        ln -sfn "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/shim/compaction-overlay-state.mjs" \
         "$HOME/.config/opencode/plugins/compaction-overlay-state.mjs"
 
       if [ ! -f "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/scripts/check-npa-drift.py" ]; then
@@ -259,6 +262,7 @@ in
         echo "error: OpenCode Devkit compatibility check failed:" >&2
         echo "$driftReport" >&2
         exit 1
+      fi
       fi
     '';
 

@@ -329,6 +329,7 @@ in
             --marketplace ${lib.escapeShellArg projectMarketplaceName} \
             --marketplace-directory ${lib.escapeShellArg projectMarketplaceInstallRoot} \
             --settings-file "$HOME/.claude/settings.json" \
+            --repository-directory ${lib.escapeShellArg "${config.home.homeDirectory}/git/${projectId}"} \
             --spec ${claudePluginSyncSpec}
         ) || true
       '');

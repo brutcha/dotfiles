@@ -1,8 +1,8 @@
-#!/usr/bin/env zsh
+#!/usr/bin/env bash
 # Prepare an Emdash-created worktree from its base checkout.
 # The project id and shared Devkit entries are substituted by corp-project.nix.
 
-setopt nullglob
+shopt -s nullglob
 base="$HOME/git/@projectId@"
 [ "$PWD" -ef "$base" ] && exit 0
 cp "$base/.emdash.json" .emdash.json 2>/dev/null || true

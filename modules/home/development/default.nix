@@ -79,7 +79,7 @@ in
           set -g extended-keys-format csi-u
           # OpenCode currently treats CSI-u Shift+Enter as Return. Translate
           # it to the Ctrl+J newline shortcut that its terminal parser accepts.
-          bind-key -n S-Enter send-keys C-j
+          bind-key -n S-Enter if-shell -F '#{==:#{pane_current_command},opencode}' 'send-keys C-j' 'send-keys S-Enter'
           # Workmux's sidebar uses mouse clicks to focus an agent pane.
           set -g mouse on
         '';
