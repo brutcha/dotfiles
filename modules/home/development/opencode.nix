@@ -14,9 +14,8 @@ let
   configPath = "${stateDirectory}/opencode.json";
   servicePath = "${home}/.config/opencode/service.json";
   rtkEnabled = config.home.apps.development.rtk.enable;
-  rtkInstruction = if config.home.apps.development.claude-code.enable
-    then "${home}/.claude/RTK.md"
-    else "${home}/.config/opencode/RTK.md";
+  # rtk.nix always materializes this path when the OpenCode adapter is enabled.
+  rtkInstruction = "${home}/.config/opencode/RTK.md";
   baseConfiguration = {
     "$schema" = "https://opencode.ai/config.json";
     update = "notify";
@@ -102,7 +101,7 @@ in
 
     (lib.mkIf (pkgs.stdenv.hostPlatform.isDarwin && cfg.service.enable) {
       home.activation.opencodeService =
-        lib.hm.dag.entryAfter [ "opencodeConfig" ] ''
+        lib.hm.dag.entryBetween [ "setupLaunchAgents" ] [ "opencodeConfig" ] ''
           OPENCODE_SERVICE_PATH=${lib.escapeShellArg servicePath} \
           OPENCODE_SERVICE_ENV=${lib.escapeShellArg (builtins.toJSON serviceEnvironment)} \
             $DRY_RUN_CMD ${mergeService}

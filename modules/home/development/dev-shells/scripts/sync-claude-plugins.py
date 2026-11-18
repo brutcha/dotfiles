@@ -11,6 +11,8 @@ import json
 import os
 import pathlib
 import subprocess
+import sys
+
 from dev_shell_scripts import is_corp_reference, write_text_if_changed
 
 
@@ -18,7 +20,7 @@ def read_json(path: pathlib.Path) -> object | None:
     try:
         return json.loads(path.read_text())
     except (OSError, json.JSONDecodeError) as error:
-        print(f"warn: could not read {path}: {error}", file=os.sys.stderr)
+        print(f"warn: could not read {path}: {error}", file=sys.stderr)
         return None
 
 
@@ -83,14 +85,20 @@ for plugin in spec:
     marketplace = plugin.get("marketplace")
     if not all(isinstance(value, str) and value for value in (plugin_id, name, marketplace)):
         continue
+    assert isinstance(plugin_id, str)
+    assert isinstance(name, str)
+    assert isinstance(marketplace, str)
+    plugin_config = plugin.get("config", {})
+    if not isinstance(plugin_config, dict):
+        continue
     settings: list[str] = []
-    for key, value in plugin.get("config", {}).items():
+    for key, value in plugin_config.items():
         if not isinstance(key, str) or not isinstance(value, str):
             continue
         if is_corp_reference(value):
             resolved = environment.get(value[1:])
             if resolved is None:
-                print(f"warn: env var {value[1:]} unset — skipping {plugin_id}.{key} sync", file=os.sys.stderr)
+                print(f"warn: env var {value[1:]} unset — skipping {plugin_id}.{key} sync", file=sys.stderr)
                 break
             value = resolved
         settings.extend(["--config", f"{key}={value}"])
@@ -98,7 +106,7 @@ for plugin in spec:
         subprocess.run([str(claude), "plugin", "update", plugin_id, "-s", "user", "-y"], env=environment, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
         installed = subprocess.run([str(claude), "plugin", "install", plugin_id, "-s", "user", "-y", *settings, "--json"], env=environment, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
         if installed.returncode:
-            print(f"warn: claude plugin install {plugin_id} failed", file=os.sys.stderr)
+            print(f"warn: claude plugin install {plugin_id} failed", file=sys.stderr)
 
         version = plugin.get("version")
         cache_prefix = config_directory / "plugins" / "cache" / marketplace / name
@@ -117,7 +125,7 @@ for plugin in spec:
                         and entry.get("version") != version
                         and str(entry.get("installPath", "")).startswith(f"{cache_prefix}/")
                     ):
-                        entry.update({"version": version, "installPath": str(install_path), "lastUpdated": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")})
+                        entry.update({"version": version, "installPath": str(install_path), "lastUpdated": datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z")})
                         changed = True
                 if changed:
                     write_text_if_changed(installed_plugins, json.dumps(document, separators=(",", ":")) + "\n", 0o644)

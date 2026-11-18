@@ -33,7 +33,9 @@ in
   config = lib.mkIf cfg.enable {
     home.packages = [ pkgs.rtk ];
 
-    home.file.".config/opencode/RTK.md" = lib.mkIf (opencodeEnabled && !claudeEnabled) {
+    # Keep a dedicated instruction file for OpenCode. Unlike ~/.claude/RTK.md,
+    # this file is declaratively present whenever the OpenCode adapter is used.
+    home.file.".config/opencode/RTK.md" = lib.mkIf opencodeEnabled {
       text = ''
         # RTK
 

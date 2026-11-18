@@ -211,8 +211,8 @@ in
   # OpenCode's rendered configuration references these files with `{file:...}`.
   # Keep them out of the Nix store and service environment.
   home.activation.opencodeCorpSecrets =
-    lib.hm.dag.entryAfter [ "keepassSecretsExtract" "opencodeConfig" ] ''
-      if [ -z "''${DRY_RUN:-}" ]; then
+    lib.hm.dag.entryBetween [ "setupLaunchAgents" ] [ "keepassSecretsExtract" "opencodeConfig" ] ''
+      if [ -z "''${DRY_RUN+x}" ]; then
         secretDir="$HOME/.local/share/opencode-nix/secrets"
         install -d -m 0700 "$secretDir"
         _opencode_secret() {
@@ -242,7 +242,7 @@ in
 
   home.activation.opencodeDevkitPort =
     lib.hm.dag.entryAfter [ "opencodeConfig" "rtkOpenCodeAdapter" ] ''
-      if [ -z "''${DRY_RUN:-}" ]; then
+      if [ -z "''${DRY_RUN+x}" ]; then
         install -d -m 0700 "$HOME/.cache/opencode-devkit-port/node_modules"
         if [ ! -e "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/node_modules" ] || [ -L "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/node_modules" ]; then
           ln -sfn "$HOME/.cache/opencode-devkit-port/node_modules" \

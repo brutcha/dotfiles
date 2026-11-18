@@ -9,7 +9,6 @@ import os
 import pathlib
 import re
 
-
 parser = argparse.ArgumentParser()
 parser.add_argument("--keys", nargs="+", required=True)
 parser.add_argument("paths", nargs="*")

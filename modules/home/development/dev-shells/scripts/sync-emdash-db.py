@@ -10,7 +10,6 @@ import pathlib
 import sqlite3
 import time
 
-
 parser = argparse.ArgumentParser()
 parser.add_argument("--project-directory", required=True)
 parser.add_argument("--preserve-patterns", required=True)

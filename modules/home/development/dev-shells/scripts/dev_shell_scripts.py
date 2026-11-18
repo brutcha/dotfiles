@@ -5,7 +5,6 @@ import re
 import shutil
 import tempfile
 
-
 CORP_REFERENCE = re.compile(r"^\$CORP_[A-Z_]+$")
 
 
@@ -36,11 +35,13 @@ def write_text_if_changed(destination: pathlib.Path, content: str, mode: int, pa
         destination.chmod(mode)
         return
     destination.parent.mkdir(mode=parent_mode, parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile("w", dir=destination.parent, delete=False) as output:
-        output.write(content)
-        temporary = pathlib.Path(output.name)
+    temporary = None
     try:
+        with tempfile.NamedTemporaryFile("w", dir=destination.parent, delete=False) as output:
+            temporary = pathlib.Path(output.name)
+            output.write(content)
         temporary.chmod(mode)
         temporary.replace(destination)
     finally:
-        temporary.unlink(missing_ok=True)
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)

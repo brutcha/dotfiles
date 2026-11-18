@@ -1,0 +1,6 @@
+[tool.basedpyright]
+# These scripts are packaged and run with Nix's Python 3.11+ interpreter.
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
+# Development scripts are executed directly, so sibling imports are intentional.
+reportImplicitRelativeImport = "none"

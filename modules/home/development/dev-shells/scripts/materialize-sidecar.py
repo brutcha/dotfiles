@@ -12,6 +12,8 @@ import pathlib
 import re
 import shutil
 import stat
+import sys
+
 from dev_shell_scripts import copy_if_changed, is_corp_reference, write_text_if_changed
 
 
@@ -21,11 +23,11 @@ def materialize_env(path: pathlib.Path, values: dict[str, str]) -> None:
         if is_corp_reference(value):
             variable = value[1:]
             if variable not in os.environ:
-                print(f"warn: env var {variable} unset — skipping env.sh key {name}", file=os.sys.stderr)
+                print(f"warn: env var {variable} unset — skipping env.sh key {name}", file=sys.stderr)
                 continue
             value = os.environ[variable]
         if "\n" in value or "\r" in value:
-            print(f"warn: env {name} contains a newline — skipping env.sh emit", file=os.sys.stderr)
+            print(f"warn: env {name} contains a newline — skipping env.sh emit", file=sys.stderr)
             continue
         escaped = value.replace("'", "'\"'\"'")
         lines.append(f"export {name}='{escaped}'\n")
@@ -77,18 +79,15 @@ materialize_env(sidecar / "env.sh", spec["environment"])
 repository = pathlib.Path(spec["repositoryDirectory"])
 if repository.is_dir():
     emdash = repository / ".emdash.json"
-    if emdash.is_symlink():
-        emdash.unlink()
     copy_if_changed(sidecar / ".emdash.json", emdash, 0o644)
 
     envrc = repository / ".envrc"
     if envrc.is_symlink():
-        print(f"warn: preserving user-owned {envrc} symlink", file=os.sys.stderr)
-    elif (
-        envrc.exists()
-        and envrc.read_bytes() != (sidecar / ".envrc").read_bytes()
-    ):
-        print(f"warn: preserving user-owned {envrc}", file=os.sys.stderr)
+        print(f"warn: preserving user-owned {envrc} symlink", file=sys.stderr)
+    elif envrc.exists() and not envrc.is_file():
+        print(f"warn: preserving user-owned non-file {envrc}", file=sys.stderr)
+    elif envrc.is_file() and envrc.read_bytes() != (sidecar / ".envrc").read_bytes():
+        print(f"warn: preserving user-owned {envrc}", file=sys.stderr)
     else:
         copy_if_changed(sidecar / ".envrc", envrc, 0o644)
 
@@ -133,11 +132,11 @@ if isinstance(claude, dict):
     if settings.is_file():
         copy_if_changed(settings, destination / "settings.json", 0o600)
     else:
-        print(f"warn: ~/.claude/settings.json missing — skipping {spec['projectId']} Claude snapshot", file=os.sys.stderr)
+        print(f"warn: ~/.claude/settings.json missing — skipping {spec['projectId']} Claude snapshot", file=sys.stderr)
     try:
         mcps = resolve_mcps(json.loads(pathlib.Path(claude["mcpServers"]).read_text()))
     except (OSError, json.JSONDecodeError, ValueError) as error:
-        print(f"warn: {spec['projectId']} MCP snapshot skipped — {error}; prior value left in place", file=os.sys.stderr)
+        print(f"warn: {spec['projectId']} MCP snapshot skipped — {error}; prior value left in place", file=sys.stderr)
     else:
         claude_json = destination / ".claude.json"
         try:

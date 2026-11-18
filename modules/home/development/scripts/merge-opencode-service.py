@@ -8,32 +8,39 @@ settings remain untouched.
 import json
 import os
 import pathlib
+import sys
 import tempfile
-
 
 path = pathlib.Path(os.environ["OPENCODE_SERVICE_PATH"])
 owned = json.loads(os.environ["OPENCODE_SERVICE_ENV"])
+if not isinstance(owned, dict):
+    raise TypeError("OPENCODE_SERVICE_ENV must be a JSON object")
 
 if path.exists():
     try:
         existing = json.loads(path.read_text())
     except json.JSONDecodeError:
         print(
-            f"warn: {path} is malformed — preserving it", file=os.sys.stderr
+            f"warn: {path} is malformed — preserving it; the OpenCode service "
+            "will start without the managed environment. Repair service.json "
+            "before the next activation can merge it.",
+            file=sys.stderr,
         )
         raise SystemExit(0)
     if not isinstance(existing, dict):
         print(
-            f"warn: {path} is not a JSON object — preserving it",
-            file=os.sys.stderr,
+            f"warn: {path} is not a JSON object — preserving it; the OpenCode "
+            "service will start without the managed environment. Repair "
+            "service.json before the next activation can merge it.",
+            file=sys.stderr,
         )
         raise SystemExit(0)
 else:
     existing = {}
 
-environment = (
-    existing.get("env") if isinstance(existing.get("env"), dict) else {}
-)
+environment = existing.get("env")
+if not isinstance(environment, dict):
+    environment = {}
 environment.update(owned)
 existing["env"] = environment
 
