@@ -210,7 +210,6 @@ let
       coreutils = pkgs.coreutils;
       direnv = pkgs.direnv;
       bash = pkgs.bash;
-      python = pkgs.python3;
       safeLink = safeWorktreeLink;
       devkitShared = lib.escapeShellArgs emdashDevkitShared;
       projectSetup = lib.escapeShellArg projectScriptsSetup;

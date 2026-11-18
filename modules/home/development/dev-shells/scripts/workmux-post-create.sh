@@ -14,7 +14,7 @@ link_from_base() {
   local relative_path="$1" source_path
   source_path="$base/$relative_path"
   [ -e "$source_path" ] || [ -L "$source_path" ] || return 0
-  @python@ @safeLink@ "$worktree_root" "$relative_path" "$source_path"
+  @safeLink@ "$worktree_root" "$relative_path" "$source_path"
 }
 
 link_from_base .opencode
@@ -28,7 +28,7 @@ done
 managed_envrc="$HOME/.local/share/dev-shells/@projectId@/.envrc"
 if [ -f .envrc ] && @coreutils@/bin/cmp -s .envrc "$managed_envrc"; then
   @direnv@/bin/direnv allow "$managed_envrc"
-  @coreutils@/bin/env PATH="$setupPath" @direnv@/bin/direnv exec "${managed_envrc:h}" @bash@/bin/bash -c @projectSetup@
+  @coreutils@/bin/env PATH="$setupPath" @direnv@/bin/direnv exec "${managed_envrc%/*}" @bash@/bin/bash -c @projectSetup@
 else
   echo "workmux bootstrap: .envrc is not the managed file; skipping direnv approval and project setup" >&2
 fi
