@@ -34,6 +34,7 @@ in
       description = "lazygit TUI. Auto-enables when git is enabled.";
     };
     tmux.enable = lib.mkEnableOption "tmux";
+    workmux.enable = lib.mkEnableOption "Workmux global configuration";
     azure-cli.enable = lib.mkEnableOption "azure-cli";
   };
 
@@ -53,6 +54,9 @@ in
         package = if pkgs.stdenv.hostPlatform.isDarwin then pkgs.ghostty-bin else pkgs.ghostty;
         settings = {
           theme = "dark:TokyoNight Night,light:TokyoNight Day";
+          # Make Shift+Enter distinct from Enter for tmux's CSI-u extended-key
+          # forwarding and agent TUIs that use it for a newline.
+          keybind = [ "shift+enter=csi:13;2u" ];
         }
         # Linux only: darwin has no PRIMARY, false there kills select-to-copy.
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
@@ -66,7 +70,43 @@ in
     })
 
     (lib.mkIf cfg.tmux.enable {
-      home.packages = [ pkgs.tmux ];
+      # Forward modified keys (notably Shift+Enter) through tmux using CSI-u.
+      # Agent TUIs use this to distinguish a newline from prompt submission.
+      programs.tmux = {
+        enable = true;
+        extraConfig = ''
+          set -g extended-keys always
+          set -g extended-keys-format csi-u
+          # OpenCode currently treats CSI-u Shift+Enter as Return. Translate
+          # it to the Ctrl+J newline shortcut that its terminal parser accepts.
+          bind-key -n S-Enter send-keys C-j
+          # Workmux's sidebar uses mouse clicks to focus an agent pane.
+          set -g mouse on
+        '';
+      };
+    })
+
+    (lib.mkIf cfg.workmux.enable {
+      # The Workmux binary comes from its vendor Homebrew tap; Home Manager
+      # owns only the global configuration.
+      xdg.configFile."workmux/config.yaml" = {
+        force = true;
+        text = ''
+          agent: opencode
+          nerdfont: true
+          # Keep every worktree as a window in the tmux session from which it
+          # was launched (normally `workmux` via the `wmux` alias). This avoids
+          # spawning one tmux session per project or worktree.
+          mode: window
+          sidebar:
+            position: left
+            width: 36
+            layout: tiles
+            group_by: project
+            sort: window
+            enter_action: focus
+        '';
+      };
     })
     
     (lib.mkIf cfg.azure-cli.enable {

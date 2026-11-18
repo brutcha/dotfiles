@@ -16,7 +16,7 @@ let
   # Emdash sometimes spawns agents without shellSetup, so the session lands in
   # ~/.claude and a later --resume (with env.sh) can't find it. Pick env.sh by cwd.
   claudeEnvCase = lib.concatMapStrings (project: let id = project.projectId; in ''
-    "$HOME/git/${id}/"*|"$HOME/emdash/worktrees/${id}/"*|"$HOME/emdash/worktrees/${id}-"*)
+    "$HOME/git/${id}/"*|"$HOME/git/${id}__worktrees/"*|"$HOME/emdash/worktrees/${id}/"*|"$HOME/emdash/worktrees/${id}-"*)
       envFile="$HOME/.local/share/dev-shells/${id}/env.sh" ;;
   '') (lib.attrValues projects);
   claudeWrapper = pkgs.writeShellScriptBin "claude" ''

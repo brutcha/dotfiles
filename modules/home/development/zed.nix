@@ -1,4 +1,4 @@
-{ config, lib, ... }:
+{ config, lib, pkgs, ... }:
 #
 # Zed editor (https://zed.dev)
 #
@@ -59,7 +59,7 @@ in
           };
           opencode-v2 = {
             type = "custom";
-            command = "/opt/homebrew/bin/opencode";
+            command = "${pkgs.opencode}/bin/opencode";
             args = [ "acp" ];
           };
         };

@@ -7,23 +7,23 @@ let
   vaultPath = "${config.home.homeDirectory}/.config/dotfiles/vault.kdbx";
   # env var name → KDBX entry path (Password attribute).
   corpSecrets = {
-    CORP_ANTHROPIC_JWT              = "corp/anthropic-jwt";
-    CORP_ANTHROPIC_BASE_URL         = "corp/anthropic-base-url";
-    CORP_AZURE_DEVOPS_MCP           = "corp/azure-devops-mcp";
-    CORP_AZURE_DEVOPS_NPMRC         = "corp/azure-devops-npmrc";
+    CORP_ANTHROPIC_JWT = "corp/anthropic-jwt";
+    CORP_ANTHROPIC_BASE_URL = "corp/anthropic-base-url";
+    CORP_AZURE_DEVOPS_MCP = "corp/azure-devops-mcp";
+    CORP_AZURE_DEVOPS_NPMRC = "corp/azure-devops-npmrc";
     CORP_AZURE_DEVOPS_RELEASE_TOKEN = "corp/azure-devops-release-token";
-    CORP_CODEX_API_KEY              = "corp/codex-api-key";
-    CORP_CODEX_BASE_URL             = "corp/codex-base-url";
-    CORP_ATLASSIAN_TOKEN            = "corp/atlassian-token";
-    CORP_CONFLUENCE_TOKEN           = "corp/confluence-token";
-    CORP_TEMPO_TOKEN                = "corp/tempo-token";
-    CORP_ROVO_TOKEN                 = "corp/rovo-token";
-    CORP_WSO2_TECH_PASSWORD_TST     = "corp/wso2-tech-password-tst";
-    CORP_WSO2_TECH_PASSWORD_ITG     = "corp/wso2-tech-password-itg";
-    CORP_PHRASE_ACCESS_TOKEN        = "corp/phrase-access-token";
-    CORP_FIGMA_ACCESS_TOKEN         = "corp/figma-access-token";
-    CORP_DYNATRACE_PAT              = "corp/dynatrace-token";
-    CORP_KAGI_API_KEY               = "corp/kagi-api-key";
+    CORP_CODEX_API_KEY = "corp/codex-api-key";
+    CORP_CODEX_BASE_URL = "corp/codex-base-url";
+    CORP_ATLASSIAN_TOKEN = "corp/atlassian-token";
+    CORP_CONFLUENCE_TOKEN = "corp/confluence-token";
+    CORP_TEMPO_TOKEN = "corp/tempo-token";
+    CORP_ROVO_TOKEN = "corp/rovo-token";
+    CORP_WSO2_TECH_PASSWORD_TST = "corp/wso2-tech-password-tst";
+    CORP_WSO2_TECH_PASSWORD_ITG = "corp/wso2-tech-password-itg";
+    CORP_PHRASE_ACCESS_TOKEN = "corp/phrase-access-token";
+    CORP_FIGMA_ACCESS_TOKEN = "corp/figma-access-token";
+    CORP_DYNATRACE_PAT = "corp/dynatrace-token";
+    CORP_KAGI_API_KEY = "corp/kagi-api-key";
   };
 in
 {
@@ -31,7 +31,7 @@ in
 
   imports = [
     ../../modules/home
-    ./registries.nix              # NB2123-only npm/yarn corp registries
+    ./registries.nix # NB2123-only npm/yarn corp registries
   ];
 
   home.apps = {
@@ -41,6 +41,8 @@ in
       ghostty.enable = true;
       git.enable = true;
       podman.enable = true;
+      tmux.enable = true;
+      workmux.enable = true;
       zed.enable = true;
 
       # Public env only; JWT + base URL injected at activation time from
@@ -67,6 +69,10 @@ in
           features = {
             api_key_model_discovery = true;
             daemon_auto_start = true;
+            # Workmux status tracking uses Codex lifecycle hooks. Keep this
+            # declarative so Home Manager does not erase the setting that the
+            # interactive status-tracking installer adds to each project home.
+            hooks = true;
           };
           model_providers.openai-proxy = {
             name = "OpenAI via Node proxy (Codex) -> AID ITG";
@@ -77,7 +83,78 @@ in
           };
         };
       };
-      opencode.enable = true;
+      opencode = {
+        enable = true;
+        configuration = {
+          websearch = false;
+          providers = {
+            corp-anthropic = {
+              name = "Corp Anthropic";
+              canonical = "anthropic";
+              package = "@opencode/ai/providers/anthropic";
+              settings = {
+                baseURL = "{file:${config.home.homeDirectory}/.local/share/opencode-nix/secrets/anthropic-base-url}/v1";
+                apiKey = "{file:${config.home.homeDirectory}/.local/share/opencode-nix/secrets/anthropic-jwt}";
+              };
+              models = lib.genAttrs [
+                "claude-haiku-4-5" "claude-haiku-5-5" "claude-opus-4-7"
+                "claude-opus-4-8" "claude-opus-5" "claude-opus-5-5"
+                "claude-sonnet-4-6" "claude-sonnet-5" "claude-sonnet-5-5"
+              ] (_: { });
+            };
+            corp-openai = {
+              name = "Corp OpenAI (Codex proxy)";
+              canonical = "openai";
+              package = "@opencode/ai/providers/azure/responses";
+              settings = {
+                baseURL = "{file:${config.home.homeDirectory}/.local/share/opencode-nix/secrets/codex-base-url}";
+                apiKey = "{file:${config.home.homeDirectory}/.local/share/opencode-nix/secrets/codex-api-key}";
+              };
+              models = lib.genAttrs [
+                "gpt-5.4" "gpt-5.5" "gpt-5.6-luna" "gpt-5.6-sol"
+                "gpt-5.6-terra" "gpt-6-sol" "gpt-6.1-sol" "gpt-6-astra"
+              ] (_: { });
+            };
+          };
+          policies = [
+            { action = "provider.use"; resource = "*"; effect = "deny"; }
+            { action = "provider.use"; resource = "corp-anthropic"; effect = "allow"; }
+            { action = "provider.use"; resource = "corp-openai"; effect = "allow"; }
+          ];
+          model = "corp-openai/gpt-5.6-terra";
+          agents = {
+            title.model = "corp-openai/gpt-5.6-luna";
+            build.model = "corp-openai/gpt-5.6-terra";
+            plan.model = "corp-openai/gpt-5.6-terra";
+            general.model = "corp-openai/gpt-5.6-terra";
+            explore.model = "corp-openai/gpt-5.6-terra";
+          };
+          mcp.servers = {
+            figma = {
+              type = "remote";
+              url = "https://mcp.figma.com/mcp";
+              headers.X-Figma-Plugin-Bundle = "figma_prod@2_2_157";
+            };
+            playwright = {
+              type = "local";
+              command = [ "yarn" "dlx" "@playwright/mcp@latest" "--headless" ];
+              codemode = false;
+            };
+          };
+          instructions = [
+            "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/instructions/dotfiles-rebuild.md"
+            "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/instructions/user-shell.md"
+            "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/instructions/dotfiles-conventions.md"
+          ];
+        };
+        service = {
+          enable = true;
+          environment = {
+            PATH = "/etc/profiles/per-user/${config.home.username}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+            NODE_EXTRA_CA_CERTS = "/etc/nix/cert-bundle.pem";
+          };
+        };
+      };
     };
 
     internet.helium.enable = true;
@@ -159,6 +236,30 @@ in
       # Rewrite the final layer after secrets so a running OpenCode instance
       # observes the completed activation state on its next reload.
       touch "$HOME/.local/share/opencode-nix/opencode.json"
+    '';
+
+  home.activation.opencodeDevkitPort =
+    lib.hm.dag.entryAfter [ "opencodeConfig" "rtkOpenCodeAdapter" ] ''
+      install -d -m 0700 "$HOME/.cache/opencode-devkit-port/node_modules"
+      if [ ! -e "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/node_modules" ]; then
+        $DRY_RUN_CMD ln -s "$HOME/.cache/opencode-devkit-port/node_modules" \
+          "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/node_modules"
+      fi
+      $DRY_RUN_CMD ln -sfn "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/shim/opencode-plugin.ts" \
+        "$HOME/.config/opencode/plugins/npa-hook-compat.ts"
+      $DRY_RUN_CMD ln -sfn "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/shim/compaction-overlay-state.mjs" \
+        "$HOME/.config/opencode/plugins/compaction-overlay-state.mjs"
+
+      if [ ! -f "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/scripts/check-npa-drift.py" ]; then
+        echo "error: OpenCode Devkit drift check is unavailable" >&2
+        exit 1
+      fi
+      if ! driftReport="$(PATH=${pkgs.git}/bin:$PATH ${pkgs.python3}/bin/python3 \
+        "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/scripts/check-npa-drift.py" 2>&1)"; then
+        echo "error: OpenCode Devkit compatibility check failed:" >&2
+        echo "$driftReport" >&2
+        exit 1
+      fi
     '';
 
   # Resolve `$VAR` refs in ~/.codex/config.toml, then run `codex login`

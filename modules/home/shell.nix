@@ -97,6 +97,7 @@
         zstyle ':fzf-tab:*' show-group none
         zstyle ':fzf-tab:complete:cd:*' fzf-preview 'ls --color $realpath'
         zstyle ':fzf-tab:complete:__zoxide_z:*' fzf-preview 'ls --color $realpath'
+
       '';
 
       shellAliases = {
@@ -105,6 +106,7 @@
         la = "eza --all";
         lla = "eza --long --all";
         llt = "eza --long --tree";
+        wmux = "tmux new-session -A -s workmux";
         find = "fd --color never";
         grep = "rg -uuu";
         top = "btm";

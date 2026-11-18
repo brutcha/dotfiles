@@ -14,18 +14,6 @@
 # Note: Installation source (Nix vs Homebrew) is abstracted away
 #
 { config, pkgs, ... }:
-let
-  opencodeSystemPolicy = pkgs.writeText "opencode-system-policy.json" (builtins.toJSON {
-    "$schema" = "https://opencode.ai/config.json";
-    update = "notify";
-    websearch = false;
-    policies = [
-      { action = "provider.use"; resource = "*"; effect = "deny"; }
-      { action = "provider.use"; resource = "corp-anthropic"; effect = "allow"; }
-      { action = "provider.use"; resource = "corp-openai"; effect = "allow"; }
-    ];
-  });
-in
 {
   # Import system modules to compose the configuration
   # Modules are evaluated in order - later ones can override earlier ones
@@ -79,19 +67,6 @@ in
   launchd.user.envVariables.PATH =
     "/etc/profiles/per-user/${config.system.primaryUser}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 
-  # opencode V2 is vendor-managed (not in nixpkgs); declared here so
-  # homebrew's `cleanup = "zap"` doesn't remove it. Binary name: `opencode`.
-  homebrew.taps = [ "anomalyco/tap" ];
-  homebrew.brews = [ "anomalyco/tap/opencode-v2" ];
-
-  # System scope is the final provider allow-list: a user config cannot add
-  # another provider by accident.  The detailed layer remains Home Manager's
-  # writable activation output.
-  system.activationScripts.opencodeSystemPolicy.text = ''
-    install -d -m 0755 "/Library/Application Support/opencode"
-    install -m 0644 ${opencodeSystemPolicy} "/Library/Application Support/opencode/opencode.json"
-  '';
-
   # builtins.fetchGit reads the daemon's env, not nix.settings.ssl-cert-file.
   nix.envVars.NIX_SSL_CERT_FILE = "/etc/nix/cert-bundle.pem";
 
@@ -111,13 +86,6 @@ in
   '';
   system.activationScripts.rootGitConfig.text = ''
     ln -sfn /etc/gitconfig /var/root/.gitconfig
-  '';
-
-  # Prebuilt npm .node binaries hard-code Homebrew's openssl@3 rpath.
-  system.activationScripts.extraActivation.text = ''
-    mkdir -p /opt/homebrew/opt/openssl@3/lib
-    ln -sfn ${pkgs.openssl.out}/lib/libssl.3.dylib /opt/homebrew/opt/openssl@3/lib/libssl.3.dylib
-    ln -sfn ${pkgs.openssl.out}/lib/libcrypto.3.dylib /opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib
   '';
 
   # Dock — hidden, tiny, instant.
