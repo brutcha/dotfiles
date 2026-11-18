@@ -38,6 +38,54 @@ def replace_json(path: pathlib.Path, document: object, mode: int) -> None:
     write_text_if_changed(path, json.dumps(document, separators=(",", ":")) + "\n", mode)
 
 
+def render_codex_config(rendered: str, destination: pathlib.Path, project_id: str) -> str | None:
+    """Resolve secret placeholders, omitting unavailable MCPs on first setup."""
+    variables = {match.group()[1:] for match in re.finditer(r"\$CORP_[A-Z_]+", rendered)}
+    missing = sorted(variable for variable in variables if variable not in os.environ)
+    if not missing:
+        return re.sub(r"\$CORP_[A-Z_]+", lambda match: os.environ[match.group()[1:]], rendered)
+
+    for variable in missing:
+        print(f"warn: {project_id} Codex config requires unset env var {variable}", file=sys.stderr)
+    if destination.exists() or destination.is_symlink():
+        print(f"warn: preserving existing {destination} until required Codex env vars are set", file=sys.stderr)
+        return None
+
+    lines = rendered.splitlines(keepends=True)
+    mcp_lines: dict[str, list[str]] = {}
+    current_name: str | None = None
+    for line in lines:
+        match = re.match(r"^\[mcp_servers\.([^\.\]]+)(?:\.[^\]]+)?\]\s*$", line)
+        if match:
+            current_name = match.group(1)
+        elif line.startswith("["):
+            current_name = None
+        if current_name is not None:
+            mcp_lines.setdefault(current_name, []).append(line)
+    skipped = {
+        name
+        for name, entry_lines in mcp_lines.items()
+        if any(f"${variable}" in "".join(entry_lines) for variable in missing)
+    }
+    if skipped:
+        print(f"warn: {project_id} omitting Codex MCP entries with unset env vars: {', '.join(sorted(skipped))}", file=sys.stderr)
+    retained: list[str] = []
+    current_name = None
+    for line in lines:
+        match = re.match(r"^\[mcp_servers\.([^\.\]]+)(?:\.[^\]]+)?\]\s*$", line)
+        if match:
+            current_name = match.group(1)
+        elif line.startswith("["):
+            current_name = None
+        if current_name not in skipped:
+            retained.append(line)
+    result = "".join(retained)
+    if any(f"${variable}" in result for variable in missing):
+        print(f"warn: {project_id} Codex config still has unresolved required values; leaving it unwritten", file=sys.stderr)
+        return None
+    return re.sub(r"\$CORP_[A-Z_]+", lambda match: os.environ[match.group()[1:]], result)
+
+
 def resolve_mcps(servers: object) -> object:
     if not isinstance(servers, dict):
         return servers
@@ -115,8 +163,10 @@ if isinstance(codex, dict):
     destination = pathlib.Path(codex["home"])
     destination.mkdir(mode=0o700, parents=True, exist_ok=True)
     rendered = pathlib.Path(codex["config"]).read_text()
-    rendered = re.sub(r"\$CORP_[A-Z_]+", lambda match: os.environ.get(match.group()[1:], match.group()), rendered)
-    write_text_if_changed(destination / "config.toml", rendered, 0o600)
+    config_path = destination / "config.toml"
+    resolved = render_codex_config(rendered, config_path, spec["projectId"])
+    if resolved is not None:
+        write_text_if_changed(config_path, resolved, 0o600)
     auth = pathlib.Path.home() / ".codex" / "auth.json"
     target = destination / "auth.json"
     if target.is_symlink() or target.exists():

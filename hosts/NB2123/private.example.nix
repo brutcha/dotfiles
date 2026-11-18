@@ -40,8 +40,9 @@ in
 
       # Optional. Runs once at worktree creation via emdash's scripts.setup,
       # after `cp .emdash.json` (which is always prefixed for you). Default:
-      # `direnv allow . && direnv exec . yarn install --immutable`.
-      scriptsSetup = "direnv allow . && direnv exec . yarn install --immutable && direnv exec . yarn my-post-install-script";
+      # `yarn install --immutable`. The Workmux hook loads the trusted
+      # sidecar environment; do not approve a worktree-owned `.envrc` here.
+      scriptsSetup = "yarn install --immutable && yarn my-post-install-script";
 
       env = {
         NODE_EXTRA_CA_CERTS = corpCaBundle;

@@ -179,8 +179,9 @@ let
 
   # scripts.setup runs emdashSetupScript first so a fresh worktree gets
   # .emdash.json + symlinks before shellSetup has anything to attach to.
-  projectScriptsSetup = project.scriptsSetup or
-    "direnv allow . && direnv exec . yarn install --immutable";
+  # The Workmux hook authorizes and loads the trusted sidecar `.envrc` before
+  # invoking this command; never approve a worktree-owned `.envrc` here.
+  projectScriptsSetup = project.scriptsSetup or "yarn install --immutable";
 
   # Shared from the base checkout's `.devkit/` once it holds `personal/`.
   emdashDevkitShared = [
@@ -199,6 +200,8 @@ let
       devkitShared = lib.escapeShellArgs emdashDevkitShared;
     }));
 
+  safeWorktreeLink = writeDevShellPython "safe-worktree-link" ./scripts/safe-worktree-link.py;
+
   emdashScriptsSetup = ''${emdashSetupScript} && ${projectScriptsSetup}'';
 
   workmuxPostCreateScript = pkgs.writeShellScript "workmux-post-create-${attrSafeId}"
@@ -207,6 +210,8 @@ let
       coreutils = pkgs.coreutils;
       direnv = pkgs.direnv;
       bash = pkgs.bash;
+      python = pkgs.python3;
+      safeLink = safeWorktreeLink;
       devkitShared = lib.escapeShellArgs emdashDevkitShared;
       projectSetup = lib.escapeShellArg projectScriptsSetup;
     }));

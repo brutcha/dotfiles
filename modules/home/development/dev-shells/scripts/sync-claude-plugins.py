@@ -18,8 +18,8 @@ from dev_shell_scripts import is_corp_reference, write_text_if_changed
 
 def read_json(path: pathlib.Path) -> object | None:
     try:
-        return json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError) as error:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
         print(f"warn: could not read {path}: {error}", file=sys.stderr)
         return None
 
@@ -90,6 +90,7 @@ for plugin in spec:
     assert isinstance(marketplace, str)
     plugin_config = plugin.get("config", {})
     if not isinstance(plugin_config, dict):
+        print(f"warn: {plugin_id} config must be an object — skipping plugin sync", file=sys.stderr)
         continue
     settings: list[str] = []
     for key, value in plugin_config.items():
@@ -107,6 +108,7 @@ for plugin in spec:
         installed = subprocess.run([str(claude), "plugin", "install", plugin_id, "-s", "user", "-y", *settings, "--json"], env=environment, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
         if installed.returncode:
             print(f"warn: claude plugin install {plugin_id} failed", file=sys.stderr)
+            continue
 
         version = plugin.get("version")
         cache_prefix = config_directory / "plugins" / "cache" / marketplace / name

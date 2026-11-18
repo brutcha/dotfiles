@@ -18,8 +18,8 @@ if not isinstance(owned, dict):
 
 if path.exists():
     try:
-        existing = json.loads(path.read_text())
-    except json.JSONDecodeError:
+        existing = json.loads(path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
         print(
             f"warn: {path} is malformed — preserving it; the OpenCode service "
             "will start without the managed environment. Repair service.json "
