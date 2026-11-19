@@ -13,7 +13,9 @@ import re
 import shutil
 import stat
 import sys
+import tomllib
 
+import tomli_w  # pyright: ignore[reportMissingImports]
 from dev_shell_scripts import copy_if_changed, is_corp_reference, write_text_if_changed
 
 
@@ -38,12 +40,33 @@ def replace_json(path: pathlib.Path, document: object, mode: int) -> None:
     write_text_if_changed(path, json.dumps(document, separators=(",", ":")) + "\n", mode)
 
 
+def environment_references(value: object) -> set[str]:
+    if isinstance(value, str):
+        return {match.group()[1:] for match in re.finditer(r"\$CORP_[A-Z_]+", value)}
+    if isinstance(value, list):
+        return set().union(*(environment_references(item) for item in value))
+    if isinstance(value, dict):
+        return set().union(*(environment_references(item) for item in value.values()))
+    return set()
+
+
+def resolve_environment_references(value: object) -> object:
+    if isinstance(value, str):
+        return re.sub(r"\$CORP_[A-Z_]+", lambda match: os.environ[match.group()[1:]], value)
+    if isinstance(value, list):
+        return [resolve_environment_references(item) for item in value]
+    if isinstance(value, dict):
+        return {key: resolve_environment_references(item) for key, item in value.items()}
+    return value
+
+
 def render_codex_config(rendered: str, destination: pathlib.Path, project_id: str) -> str | None:
     """Resolve secret placeholders, omitting unavailable MCPs on first setup."""
-    variables = {match.group()[1:] for match in re.finditer(r"\$CORP_[A-Z_]+", rendered)}
+    document = tomllib.loads(rendered)
+    variables = environment_references(document)
     missing = {variable for variable in variables if variable not in os.environ}
     if not missing:
-        return re.sub(r"\$CORP_[A-Z_]+", lambda match: os.environ[match.group()[1:]], rendered)
+        return tomli_w.dumps(resolve_environment_references(document))
 
     for variable in missing:
         print(f"warn: {project_id} Codex config requires unset env var {variable}", file=sys.stderr)
@@ -51,39 +74,22 @@ def render_codex_config(rendered: str, destination: pathlib.Path, project_id: st
         print(f"warn: preserving existing {destination} until required Codex env vars are set", file=sys.stderr)
         return None
 
-    lines = rendered.splitlines(keepends=True)
-    mcp_lines: dict[str, list[str]] = {}
-    current_name: str | None = None
-    for line in lines:
-        match = re.match(r"^\[mcp_servers\.([^\.\]]+)(?:\.[^\]]+)?\]\s*$", line)
-        if match:
-            current_name = match.group(1)
-        elif line.startswith("["):
-            current_name = None
-        if current_name is not None:
-            mcp_lines.setdefault(current_name, []).append(line)
-    skipped = {
-        name
-        for name, entry_lines in mcp_lines.items()
-        if missing & {match.group()[1:] for match in re.finditer(r"\$CORP_[A-Z_]+", "".join(entry_lines))}
-    }
-    if skipped:
+    servers = document.get("mcp_servers")
+    if isinstance(servers, dict):
+        skipped = {
+            name
+            for name, server in servers.items()
+            if missing & environment_references(server)
+        }
+    else:
+        skipped = set()
+    if skipped and isinstance(servers, dict):
         print(f"warn: {project_id} omitting Codex MCP entries with unset env vars: {', '.join(sorted(skipped))}", file=sys.stderr)
-    retained: list[str] = []
-    current_name = None
-    for line in lines:
-        match = re.match(r"^\[mcp_servers\.([^\.\]]+)(?:\.[^\]]+)?\]\s*$", line)
-        if match:
-            current_name = match.group(1)
-        elif line.startswith("["):
-            current_name = None
-        if current_name not in skipped:
-            retained.append(line)
-    result = "".join(retained)
-    if missing & {match.group()[1:] for match in re.finditer(r"\$CORP_[A-Z_]+", result)}:
+        document["mcp_servers"] = {name: server for name, server in servers.items() if name not in skipped}
+    if missing & environment_references(document):
         print(f"warn: {project_id} Codex config still has unresolved required values; leaving it unwritten", file=sys.stderr)
         return None
-    return re.sub(r"\$CORP_[A-Z_]+", lambda match: os.environ[match.group()[1:]], result)
+    return tomli_w.dumps(resolve_environment_references(document))
 
 
 def resolve_mcps(servers: object) -> object:

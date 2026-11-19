@@ -113,7 +113,7 @@ let
   };
   writeDevShellPython = name: source:
     pkgs.writers.writePython3 name {
-      libraries = [ devShellScriptLibrary ];
+      libraries = [ devShellScriptLibrary pkgs.python3Packages."tomli-w" ];
       flakeIgnore = [ "E501" "W503" ];
     }
       (builtins.readFile source);
