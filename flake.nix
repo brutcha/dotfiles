@@ -200,20 +200,9 @@
           # (nix's pathExists under sudo is unreliable; let `import` fail with a
           # clearer file-not-found message if the file is missing)
           private = import "/Users/${username}/.config/dotfiles/private.nix" { inherit inputs pkgs; };
-          fabricInvoke3Overlay = final: prev: {
-            pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
-              (pyfinal: pyprev: {
-                fabric = pyprev.fabric.overrideAttrs (old: {
-                  patches = (old.patches or [ ]) ++ [ ./pkgs/fabric/invoke-3-compat.patch ];
-                  meta = old.meta // { broken = false; };
-                });
-              })
-            ];
-          };
           pkgs = darwinHosts.mkDarwinPkgs {
             inherit nixpkgs system helpers rootDir;
-            nixpkgsConfig.problems.handlers.fabric.broken = "warn";
-            overlays = [ fabricInvoke3Overlay ];
+            overlays = [ (import ./hosts/${hostname}/overlays.nix) ];
           };
           rootDir = self;
         in
