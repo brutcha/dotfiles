@@ -5,4 +5,4 @@
 # Image editing and design software for macOS.
 # Installed via Homebrew cask for easier updates and maintenance.
 #
-helpers.darwin.mkBrewCask { caskName = "affinity"; }
+helpers.darwin.mkBrewPkg { caskName = "affinity"; }

@@ -18,7 +18,7 @@ let
   cfg = helpers.darwin;
 in
 if stdenv.hostPlatform.isDarwin then
-  cfg.mkBrewCask { caskName = "emdash"; }
+  cfg.mkBrewPkg { caskName = "emdash"; }
 else
   let
     version = "1.1.40";

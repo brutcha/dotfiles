@@ -1,4 +1,4 @@
-{ config, lib, ... }:
+{ config, lib, pkgs, ... }:
 #
 # Zed editor (https://zed.dev)
 #
@@ -56,6 +56,11 @@ in
         agent_servers = {
           claude-acp = {
             type = "registry";
+          };
+          opencode-v2 = {
+            type = "custom";
+            command = "${pkgs.opencode}/bin/opencode";
+            args = [ "acp" ];
           };
         };
 

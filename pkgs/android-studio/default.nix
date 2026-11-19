@@ -9,4 +9,4 @@
 # Android Studio is darwin-only in this overlay; the SDK Manager still runs
 # inside the app to fetch platform-tools/emulator/system-images at first run.
 #
-helpers.darwin.mkBrewCask { caskName = "android-studio"; }
+helpers.darwin.mkBrewPkg { caskName = "android-studio"; }

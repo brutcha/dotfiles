@@ -87,30 +87,36 @@
         '';
       };
 
-    # Create a marker package for Homebrew cask installation
+    # Create a Homebrew package marker.
     #
-    # This creates a minimal marker derivation that indicates a package should be
-    # installed via Homebrew cask. The actual installation is handled by adding
-    # the cask name to homebrew.casks in the module configuration.
+    # Homebrew installs the actual package. This marker tells the Homebrew
+    # module which tap, cask, and/or formula to add.
     #
     # This approach maintains the abstraction where installation sources are defined
     # in pkgs/ while keeping the current module structure unchanged.
     #
     # Arguments:
-    #   caskName - The Homebrew cask name (e.g., "karabiner-elements", "bettertouchtool")
+    #   tapName - The optional Homebrew tap name
+    #   caskName - The optional Homebrew cask name
+    #   formulaName - The optional Homebrew formula name
     #
     # Returns:
-    #   A marker derivation with the cask name in passthru
+    #   A marker derivation with the package name in passthru
     #
     # Example:
-    #   helpers.darwin.mkBrewCask { caskName = "karabiner-elements"; }
+    #   helpers.darwin.mkBrewPkg { caskName = "karabiner-elements"; }
+    #   helpers.darwin.mkBrewPkg { formulaName = "workmux"; }
     #
     # Usage in modules:
-    #   When a package created with mkBrewCask is added to environment.systemPackages,
-    #   the module should check for passthru.brewCask and add it to homebrew.casks.
+    #   When a package created with mkBrewPkg is added to environment.systemPackages,
+    #   the module should check its passthru marker and add it to Homebrew.
     #
-    mkBrewCask = { caskName }:
-      lib.trivial.pipe caskName [
+    mkBrewPkg = { tapName ? null, caskName ? null, formulaName ? null }:
+      assert lib.assertMsg (caskName != null || formulaName != null)
+        "mkBrewPkg: set caskName or formulaName";
+      let
+        name = if caskName != null then caskName else formulaName;
+      in lib.trivial.pipe name [
         (name: {
           # Create a minimal marker derivation
           type = "derivation";
@@ -120,13 +126,17 @@
           drvPath = "/nix/store/00000000000000000000000000000000-${name}.drv";
           outPath = "/nix/store/00000000000000000000000000000000-${name}";
           
-          # Store the cask name for modules to detect
-          passthru = {
-            brewCask = name;
+          # Store the Homebrew package name for modules to detect
+          passthru = lib.optionalAttrs (caskName != null) {
+            brewCask = caskName;
+          } // lib.optionalAttrs (formulaName != null) {
+            brewFormula = formulaName;
+          } // lib.optionalAttrs (tapName != null) {
+            brewTap = tapName;
           };
           
           meta = {
-            description = "Homebrew cask: ${name}";
+            description = "Homebrew package: ${name}";
             platforms = lib.platforms.darwin;
             license = lib.licenses.unfree;
           };

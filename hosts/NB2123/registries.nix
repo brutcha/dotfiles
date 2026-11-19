@@ -1,4 +1,4 @@
-{ private, lib, pkgs, ... }:
+{ config, private, lib, pkgs, ... }:
 #
 # ~/.yarnrc.yml written at activation time so the narrow-scope PAT
 # (corp/azure-devops-npmrc — Packaging: Read only) never enters /nix/store.
@@ -47,6 +47,10 @@ in
     cafile=/etc/nix/cert-bundle.pem
     registry=https://registry.npmjs.org/
   '';
+
+  # Env-var (not .npmrc) so direnvs can override per-project.
+  home.sessionVariables.NPM_CONFIG_PREFIX = "${config.home.homeDirectory}/.npm-global";
+  home.sessionPath = [ "${config.home.homeDirectory}/.npm-global/bin" ];
 
   home.activation.yarnrcWithPat = lib.mkIf hasAnyRegistry
     (lib.hm.dag.entryAfter [ "keepassSecretsExtract" ] ''

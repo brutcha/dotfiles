@@ -6,4 +6,4 @@
 # used for corporate/work communication.
 # Installed via Homebrew cask for easier updates and maintenance.
 #
-helpers.darwin.mkBrewCask { caskName = "microsoft-teams"; }
+helpers.darwin.mkBrewPkg { caskName = "microsoft-teams"; }

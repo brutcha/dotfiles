@@ -6,4 +6,4 @@
 # Exchange accounts.
 # Installed via Homebrew cask for easier updates and maintenance.
 #
-helpers.darwin.mkBrewCask { caskName = "microsoft-outlook"; }
+helpers.darwin.mkBrewPkg { caskName = "microsoft-outlook"; }

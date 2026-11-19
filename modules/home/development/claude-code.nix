@@ -89,6 +89,12 @@ in
       default = { };
       description = "settings.json env — provider URL, auth token, model, CA, gateway flags.";
     };
+
+    mcpServers = lib.mkOption {
+      type = lib.types.attrsOf (pkgs.formats.json { }).type;
+      default = { };
+      description = "Host-specific user-global MCP servers.";
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -110,16 +116,12 @@ in
 
       # User-global MCP servers (project-scoped ones live in each project's .mcp.json).
       mcpServers = {
-        context7 = {
-          type = "http";
-          url = "https://mcp.context7.com/mcp";
-        };
         playwright = {
           type = "stdio";
           command = "yarn";
           args = [ "dlx" "@playwright/mcp@latest" "--headless" ];
         };
-      };
+      } // cfg.mcpServers;
     };
 
     # Timestamped so repeated interrupts accumulate distinct sidecars for

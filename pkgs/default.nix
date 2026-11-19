@@ -9,19 +9,24 @@
 # - docker-desktop: Docker Desktop with daemon and GUI (macOS only)
 # - orbstack: Docker Desktop alternative with better performance (macOS only)
 # - better-touch-tool: Gesture and touchpad configuration (macOS only)
+# - karabiner-elements: Keyboard customizer (Homebrew cask on macOS)
 # - raycast: Spotlight replacement (macOS only — nixpkgs not cached for darwin)
 # - android-studio: IDE + AVD manager (macOS only — nixpkgs is Linux-only)
 # - ungoogled-chromium: Chromium without Google dependencies (macOS custom, Linux uses nixpkgs)
+# - workmux: Git worktree and tmux workflow tool (brew formula; not in nixpkgs)
 #
 # Cross-platform packages:
+# - codex: Nixpkgs Codex wrapper for daemon_auto_start (see pkgs/codex)
 # - emdash: Multi-agent dev environment (brew cask on macOS, AppImage on Linux)
 # - zed-editor: Editor (brew cask on macOS — nixpkgs not cached for darwin;
 #   Linux uses nixpkgs version)
 # - obs-studio: Screen recorder/streamer (brew cask on macOS — nixpkgs is Linux-only)
 # - keepassxc: Password manager (brew cask on macOS — sidesteps qtmacextras
 #   linker crash; Linux uses nixpkgs)
-# - tokyonight-gtk-theme: GTK theme (nixpkgs dropped it over a dead GTK2
-#   dependency the theme doesn't need — see pkgs/tokyonight-gtk-theme)
+# - tokyonight-gtk-theme: GTK theme without its unused GTK2-era dependency
+#   (see pkgs/tokyonight-gtk-theme)
+#
+# Linux packages:
 # - spotify-tray-wayland: Native Wayland/SNI Spotify tray icon, not in
 #   nixpkgs (Linux-only — see pkgs/spotify-tray-wayland)
 #
@@ -52,6 +57,11 @@ final: prev: {
 
   better-touch-tool = prev.callPackage ./better-touch-tool { inherit helpers; };
 
+  karabiner-elements =
+    if prev.stdenv.hostPlatform.isDarwin
+    then prev.callPackage ./karabiner-elements { inherit helpers; }
+    else prev.karabiner-elements;
+
   raycast =
     if prev.stdenv.hostPlatform.isDarwin
     then prev.callPackage ./raycast { inherit helpers; }
@@ -61,6 +71,9 @@ final: prev: {
     if prev.stdenv.hostPlatform.isDarwin
     then prev.callPackage ./android-studio { inherit helpers; }
     else prev.android-studio;
+
+  # explicit `codex = prev.codex` avoids callPackage auto-arg recursion
+  codex = prev.callPackage ./codex { codex = prev.codex; };
 
   emdash = prev.callPackage ./emdash { inherit helpers; };
 
@@ -80,4 +93,6 @@ final: prev: {
   tokyonight-gtk-theme = prev.callPackage ./tokyonight-gtk-theme { };
 
   spotify-tray-wayland = prev.callPackage ./spotify-tray-wayland { };
+
+  workmux = prev.callPackage ./workmux { inherit helpers; };
 }

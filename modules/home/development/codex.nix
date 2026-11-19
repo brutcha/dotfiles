@@ -11,8 +11,8 @@
 #
 # `model`, `reasoning`, and `mcpServers` from the typed options always win on
 # merge against `settings`. `_lib.renderConfigToml` is an internal helper that
-# takes an extra mcpServers attrset and returns the merged TOML as a store
-# path — consumers use it to render project-scoped variants.
+# takes extra mcpServers and settings attrsets and returns the merged TOML as a
+# store path — consumers use it to render project-scoped variants.
 #
 let
   cfg = config.home.apps.development.codex;
@@ -57,6 +57,15 @@ let
           headers, so the secret is baked into the on-disk 0600 config.toml.
         '';
       };
+      http_headers_helper = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = ''
+          Command that prints a JSON map of HTTP headers at connection time.
+          Only valid for http transport. Use this for credentials held outside
+          the generated config, such as a private runtime file.
+        '';
+      };
     };
   });
 
@@ -73,25 +82,27 @@ let
     if s.type or null == "http" then
       { url = require "url" (s.url or null); } //
         lib.optionalAttrs ((s.authorization_env_var or null) != null)
-          { http_headers.Authorization = "$" + s.authorization_env_var; }
+          { http_headers.Authorization = "$" + s.authorization_env_var; } //
+        lib.optionalAttrs ((s.http_headers_helper or null) != null)
+          { inherit (s) http_headers_helper; }
     else if s.type or null == "stdio" then
-      lib.throwIf ((s.authorization_env_var or null) != null)
-        "codex.nix: mcp_servers.${name} is stdio — authorization_env_var only applies to http transport (Codex has no runtime header injection for stdio; set env instead)."
+      lib.throwIf ((s.authorization_env_var or null) != null || (s.http_headers_helper or null) != null)
+        "codex.nix: mcp_servers.${name} is stdio — authorization_env_var and http_headers_helper only apply to http transport (set env instead)."
         ({ command = require "command" (s.command or null); args = s.args or [ ]; } //
           lib.optionalAttrs ((s.env or { }) != { }) { env = s.env; })
     else throw "codex.nix: mcp_servers.${name}.type '${s.type or "<unset>"}' unsupported (want 'http' or 'stdio').";
 
   tomlFormat = pkgs.formats.toml { };
 
-  mkConfigAttrs = extraMcpServers:
-    cfg.settings // {
+  mkConfigAttrs = extraMcpServers: extraSettings:
+    (lib.recursiveUpdate cfg.settings extraSettings) // {
       model = cfg.model;
       model_reasoning_effort = cfg.reasoning;
       mcp_servers = lib.mapAttrs toTomlServer (cfg.mcpServers // extraMcpServers);
     };
 
-  renderConfigToml = extraMcpServers:
-    tomlFormat.generate "codex-config.toml" (mkConfigAttrs extraMcpServers);
+  renderConfigToml = extraMcpServers: extraSettings:
+    tomlFormat.generate "codex-config.toml" (mkConfigAttrs extraMcpServers extraSettings);
 in
 {
   options.home.apps.development.codex = {
@@ -99,7 +110,7 @@ in
 
     model = lib.mkOption {
       type = lib.types.str;
-      default = "gpt-5.5";
+      default = "gpt-6-sol";
       description = "Default model — written as `model = ...` in config.toml.";
     };
 
@@ -131,10 +142,9 @@ in
       readOnly = true;
       default = { inherit renderConfigToml; };
       description = ''
-        Exposes `renderConfigToml : attrsOf mcpServerType -> path`. Returns
-        a store path holding config.toml with the given extras merged over
-        `mcpServers`. `settings`, `model`, and `reasoning` are always taken
-        from the module's own values.
+        Exposes `renderConfigToml : attrsOf mcpServerType -> attrs -> path`.
+        Returns config.toml with project MCP servers and settings merged in.
+        `model` and `reasoning` are always taken from the module's own values.
       '';
     };
   };
@@ -148,10 +158,6 @@ in
         type = "http";
         url = "https://developers.openai.com/mcp";
       };
-      context7 = {
-        type = "http";
-        url = "https://mcp.context7.com/mcp";
-      };
     };
 
     home.activation.codexBase =
@@ -159,7 +165,7 @@ in
         # Guard against a stray CODEX_HOME redirecting the write.
         unset CODEX_HOME
         $DRY_RUN_CMD install -d -m 0700 "$HOME/.codex"
-        $DRY_RUN_CMD install -m 0600 -T ${renderConfigToml { }} "$HOME/.codex/config.toml"
+        $DRY_RUN_CMD install -m 0600 -T ${renderConfigToml { } { }} "$HOME/.codex/config.toml"
       '';
   };
 }

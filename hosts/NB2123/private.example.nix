@@ -40,8 +40,9 @@ in
 
       # Optional. Runs once at worktree creation via emdash's scripts.setup,
       # after `cp .emdash.json` (which is always prefixed for you). Default:
-      # `direnv allow . && direnv exec . yarn install --frozen-lockfile`.
-      scriptsSetup = "direnv allow . && direnv exec . yarn install --frozen-lockfile && direnv exec . yarn my-post-install-script";
+      # `yarn install --immutable`. The Workmux hook loads the trusted
+      # sidecar environment; do not approve a worktree-owned `.envrc` here.
+      scriptsSetup = "yarn install --immutable && yarn my-post-install-script";
 
       env = {
         NODE_EXTRA_CA_CERTS = corpCaBundle;
@@ -67,7 +68,7 @@ in
       mcpServers = {
         atlassian = {
           type = "http";
-          url = "https://mcp.atlassian.com/v1/mcp";
+          url = "https://mcp.atlassian.com/v1/mcp/authv2";
         };
         # DevOps MCP. --authentication envvar reads raw PAT from $ADO_MCP_AUTH_TOKEN
         # (no interactive az login). Note: `env` is a DIFFERENT mode meaning

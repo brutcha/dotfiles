@@ -9,7 +9,7 @@
 # /Applications/... prefix. Reference as `pkgs.keepassxc.passthru.cli`.
 #
 let
-  marker = helpers.darwin.mkBrewCask { caskName = "keepassxc"; };
+  marker = helpers.darwin.mkBrewPkg { caskName = "keepassxc"; };
   appMacOS = "/Applications/KeePassXC.app/Contents/MacOS";
 in
 marker // {

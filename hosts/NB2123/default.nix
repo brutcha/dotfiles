@@ -13,7 +13,7 @@
 #
 # Note: Installation source (Nix vs Homebrew) is abstracted away
 #
-{ config, ... }:
+{ config, pkgs, ... }:
 {
   # Import system modules to compose the configuration
   # Modules are evaluated in order - later ones can override earlier ones
@@ -29,7 +29,6 @@
     system = {
       karabiner.enable = false;
       better-touch-tool.enable = false;
-      ice.enable = true;
     };
 
     windowManager = {
@@ -39,6 +38,7 @@
 
     development = {
       android-studio.enable = true;
+      workmux.enable = true;
     };
   };
 
@@ -69,6 +69,14 @@
 
   # builtins.fetchGit reads the daemon's env, not nix.settings.ssl-cert-file.
   nix.envVars.NIX_SSL_CERT_FILE = "/etc/nix/cert-bundle.pem";
+
+  # git config isn't always reachable under sudo'd nix eval; expose the corp
+  # CA via the env vars OpenSSL / curl / git / nix all fall back to.
+  environment.variables = {
+    SSL_CERT_FILE   = "/etc/nix/cert-bundle.pem";
+    GIT_SSL_CAINFO  = "/etc/nix/cert-bundle.pem";
+    NIX_SSL_CERT_FILE = "/etc/nix/cert-bundle.pem";
+  };
 
   # Nix-packaged git's sysconfdir is in /nix/store, so mirror /etc/gitconfig
   # into HOME=/var/root where git's global-config path resolves under sudo.
@@ -187,30 +195,6 @@
     menubarIcon = 2;
     updatePolicy = 1;
     screenRecordingPermissionSkipped = true;
-  };
-
-  system.defaults.CustomUserPreferences."com.jordanbaird.Ice" = {
-    SUAutomaticallyUpdate = false;
-    SUEnableAutomaticChecks = false;
-    SUHasLaunchedBefore = true;
-    ShowIceIcon = true;
-    CustomIceIconIsTemplate = false;
-    ShowSectionDividers = false;
-    EnableAlwaysHiddenSection = false;
-    CanToggleAlwaysHiddenSection = true;
-    ShowAllSectionsOnUserDrag = true;
-    ShowOnClick = true;
-    ShowOnHover = false;
-    ShowOnHoverDelay = 0.2;
-    ShowOnScroll = true;
-    AutoRehide = true;
-    RehideInterval = 15.0;
-    RehideStrategy = 0;
-    TempShowInterval = 15.0;
-    IceBarLocation = 0;
-    UseIceBar = false;
-    ItemSpacingOffset = 0.0;
-    HideApplicationMenus = true;
   };
 
   system.defaults.CustomUserPreferences."com.mitchellh.ghostty" = {
