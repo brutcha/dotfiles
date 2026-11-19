@@ -12,13 +12,15 @@
   iconVariants ? [ ],
 }:
 #
-# Vendored copy of nixpkgs's pkgs/by-name/to/tokyonight-gtk-theme —
-# nixpkgs removed the package because its propagatedUserEnvPkgs referenced
+# Tokyo Night GTK theme for Unix.
+#
+# Vendored copy of nixpkgs's pkgs/by-name/to/tokyonight-gtk-theme — nixpkgs
+# removed the package because its propagatedUserEnvPkgs referenced
 # gtk-engine-murrine, itself removed for depending on GTK2. The theme's
 # CSS-based rendering never actually needed that engine, so this drops the
-# gtk-engine-murrine arg/propagatedUserEnvPkgs line and keeps everything
-# else identical. Delete this and go back to
-# `pkgs.tokyonight-gtk-theme.override {...}` once nixpkgs restores it.
+# gtk-engine-murrine arg/propagatedUserEnvPkgs line and keeps everything else
+# identical. Delete this and go back to `pkgs.tokyonight-gtk-theme.override
+# {...}` once nixpkgs restores it.
 #
 let
   pname = "tokyonight-gtk-theme";

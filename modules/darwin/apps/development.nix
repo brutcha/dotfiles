@@ -7,6 +7,7 @@
 # - darwin.apps.development.orbstack.enable        - Lightweight Docker alternative
 # - darwin.apps.development.android-studio.enable  - Android Studio (brew cask)
 # - darwin.apps.development.android-tools.enable   - adb/fastboot CLI (auto-on with studio)
+# - darwin.apps.development.workmux.enable         - git worktree and tmux workflow tool
 #
 let
   cfg = config.darwin.apps.development;
@@ -21,6 +22,7 @@ in
       default = cfg.android-studio.enable;
       description = "Install android-tools (adb, fastboot) on PATH. Auto-on with android-studio.";
     };
+    workmux.enable = lib.mkEnableOption "Workmux git worktree and tmux workflow tool";
   };
 
   config = lib.mkMerge [
@@ -40,6 +42,10 @@ in
 
     (lib.mkIf cfg.android-tools.enable {
       environment.systemPackages = [ pkgs.android-tools ];
+    })
+
+    (lib.mkIf cfg.workmux.enable {
+      environment.systemPackages = [ pkgs.workmux ];
     })
   ];
 }

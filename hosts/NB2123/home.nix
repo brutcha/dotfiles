@@ -24,6 +24,7 @@ let
     CORP_FIGMA_ACCESS_TOKEN = "corp/figma-access-token";
     CORP_DYNATRACE_PAT = "corp/dynatrace-token";
     CORP_KAGI_API_KEY = "corp/kagi-api-key";
+    CORP_CONTEXT7_API_KEY = "corp/context7-api-key";
   };
 in
 {
@@ -58,12 +59,22 @@ in
           CLAUDE_CODE_API_KEY_HELPER_TTL_MS = "300000";
           ENABLE_TOOL_SEARCH = "true";
         };
+        mcpServers.context7 = {
+          type = "http";
+          url = "https://mcp.context7.com/mcp";
+          headersHelper = "${config.home.homeDirectory}/.local/libexec/context7-headers";
+        };
       };
 
       # base_url $CORP_CODEX_BASE_URL ref + `codex login --with-api-key` are
       # patched in at activation by home.activation.codexCorpSecrets below.
       codex = {
         enable = true;
+        mcpServers.context7 = {
+          type = "http";
+          url = "https://mcp.context7.com/mcp";
+          http_headers_helper = "${config.home.homeDirectory}/.local/libexec/context7-headers";
+        };
         settings = {
           model_provider = "openai-proxy";
           features = {
@@ -83,8 +94,10 @@ in
           };
         };
       };
+
       opencode = {
         enable = true;
+
         configuration = {
           websearch = false;
           providers = {
@@ -97,11 +110,19 @@ in
                 apiKey = "{file:${config.home.homeDirectory}/.local/share/opencode-nix/secrets/anthropic-jwt}";
               };
               models = lib.genAttrs [
-                "claude-haiku-4-5" "claude-haiku-5-5" "claude-opus-4-7"
-                "claude-opus-4-8" "claude-opus-5" "claude-opus-5-5"
-                "claude-sonnet-4-6" "claude-sonnet-5" "claude-sonnet-5-5"
-              ] (_: { });
+                "claude-haiku-4-5"
+                "claude-haiku-5-5"
+                "claude-opus-4-7"
+                "claude-opus-4-8"
+                "claude-opus-5"
+                "claude-opus-5-5"
+                "claude-sonnet-4-6"
+                "claude-sonnet-5"
+                "claude-sonnet-5-5"
+              ]
+                (_: { });
             };
+
             corp-openai = {
               name = "Corp OpenAI (Codex proxy)";
               canonical = "openai";
@@ -111,17 +132,27 @@ in
                 apiKey = "{file:${config.home.homeDirectory}/.local/share/opencode-nix/secrets/codex-api-key}";
               };
               models = lib.genAttrs [
-                "gpt-5.4" "gpt-5.5" "gpt-5.6-luna" "gpt-5.6-sol"
-                "gpt-5.6-terra" "gpt-6-sol" "gpt-6.1-sol" "gpt-6-astra"
-              ] (_: { });
+                "gpt-5.4"
+                "gpt-5.5"
+                "gpt-5.6-luna"
+                "gpt-5.6-sol"
+                "gpt-5.6-terra"
+                "gpt-6-sol"
+                "gpt-6.1-sol"
+                "gpt-6-astra"
+              ]
+                (_: { });
             };
           };
+
           policies = [
             { action = "provider.use"; resource = "*"; effect = "deny"; }
             { action = "provider.use"; resource = "corp-anthropic"; effect = "allow"; }
             { action = "provider.use"; resource = "corp-openai"; effect = "allow"; }
           ];
+
           model = "corp-openai/gpt-5.6-terra";
+
           agents = {
             title.model = "corp-openai/gpt-5.6-luna";
             build.model = "corp-openai/gpt-5.6-terra";
@@ -129,24 +160,36 @@ in
             general.model = "corp-openai/gpt-5.6-terra";
             explore.model = "corp-openai/gpt-5.6-terra";
           };
+
           mcp.servers = {
+            context7 = {
+              type = "remote";
+              url = "https://mcp.context7.com/mcp";
+              oauth = false;
+              headers.Authorization = "Bearer {file:${config.home.homeDirectory}/.local/share/opencode-nix/secrets/context7-api-key}";
+              codemode = false;
+            };
+
             figma = {
               type = "remote";
               url = "https://mcp.figma.com/mcp";
               headers.X-Figma-Plugin-Bundle = "figma_prod@2_2_157";
             };
+
             playwright = {
               type = "local";
               command = [ "${pkgs.yarn-berry}/bin/yarn" "dlx" "@playwright/mcp@latest" "--headless" ];
               codemode = false;
             };
           };
+
           instructions = [
             "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/instructions/dotfiles-rebuild.md"
             "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/instructions/user-shell.md"
             "${config.home.homeDirectory}/.config/dotfiles/opencode-devkit-port/instructions/dotfiles-conventions.md"
           ];
         };
+
         service = {
           enable = true;
           environment = {
@@ -169,6 +212,11 @@ in
       jankyborders.enable = false;
       sketchybar.enable = false;
     };
+  };
+
+  home.file.".local/libexec/context7-headers" = {
+    source = ./scripts/context7-headers.sh;
+    executable = true;
   };
 
   # Extract corp secrets from KeePassXC at activation
@@ -233,6 +281,7 @@ in
         _opencode_secret CORP_CODEX_API_KEY codex-api-key
         _opencode_secret CORP_CODEX_BASE_URL codex-base-url
         _opencode_secret CORP_KAGI_API_KEY kagi-api-key
+        _opencode_secret CORP_CONTEXT7_API_KEY context7-api-key
 
         # Rewrite the final layer after secrets so a running OpenCode instance
         # observes the completed activation state on its next reload.

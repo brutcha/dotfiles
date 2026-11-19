@@ -5,4 +5,4 @@
 # Fast, lightweight Docker and Linux VM alternative to Docker Desktop.
 # Installed via Homebrew cask for easier updates and maintenance.
 #
-helpers.darwin.mkBrewCask { caskName = "orbstack"; }
+helpers.darwin.mkBrewPkg { caskName = "orbstack"; }

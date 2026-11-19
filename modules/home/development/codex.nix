@@ -57,6 +57,15 @@ let
           headers, so the secret is baked into the on-disk 0600 config.toml.
         '';
       };
+      http_headers_helper = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = ''
+          Command that prints a JSON map of HTTP headers at connection time.
+          Only valid for http transport. Use this for credentials held outside
+          the generated config, such as a private runtime file.
+        '';
+      };
     };
   });
 
@@ -73,10 +82,12 @@ let
     if s.type or null == "http" then
       { url = require "url" (s.url or null); } //
         lib.optionalAttrs ((s.authorization_env_var or null) != null)
-          { http_headers.Authorization = "$" + s.authorization_env_var; }
+          { http_headers.Authorization = "$" + s.authorization_env_var; } //
+        lib.optionalAttrs ((s.http_headers_helper or null) != null)
+          { inherit (s) http_headers_helper; }
     else if s.type or null == "stdio" then
-      lib.throwIf ((s.authorization_env_var or null) != null)
-        "codex.nix: mcp_servers.${name} is stdio — authorization_env_var only applies to http transport (Codex has no runtime header injection for stdio; set env instead)."
+      lib.throwIf ((s.authorization_env_var or null) != null || (s.http_headers_helper or null) != null)
+        "codex.nix: mcp_servers.${name} is stdio — authorization_env_var and http_headers_helper only apply to http transport (set env instead)."
         ({ command = require "command" (s.command or null); args = s.args or [ ]; } //
           lib.optionalAttrs ((s.env or { }) != { }) { env = s.env; })
     else throw "codex.nix: mcp_servers.${name}.type '${s.type or "<unset>"}' unsupported (want 'http' or 'stdio').";
@@ -146,10 +157,6 @@ in
       openaiDeveloperDocs = {
         type = "http";
         url = "https://developers.openai.com/mcp";
-      };
-      context7 = {
-        type = "http";
-        url = "https://mcp.context7.com/mcp";
       };
     };
 

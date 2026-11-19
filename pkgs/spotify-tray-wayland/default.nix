@@ -7,10 +7,12 @@
   windowManager ? "hyprland",
 }:
 #
-# Native Wayland/StatusNotifierItem system tray for the official Spotify
-# Linux client — not in nixpkgs. Unlike the old X11-only `spotify-tray`
-# package, its SNI implementation registers correctly with waybar's `tray`
-# module.
+# Spotify Tray Wayland for Linux.
+#
+# Built from upstream source because Nixpkgs does not provide it. It is a
+# Native Wayland/StatusNotifierItem system tray for the official Spotify Linux
+# client; unlike the old X11-only `spotify-tray`, it registers correctly with
+# Waybar's `tray` module.
 #
 assert lib.assertMsg (builtins.elem windowManager [ "hyprland" "sway" ])
   "spotify-tray-wayland: windowManager must be \"hyprland\" or \"sway\", got ${windowManager}";

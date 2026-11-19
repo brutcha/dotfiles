@@ -28,11 +28,6 @@ let
         headers.Authorization = "Bearer {file:${stateDirectory}/secrets/kagi-api-key}";
         codemode = false;
       };
-      context7 = {
-        type = "remote";
-        url = "https://mcp.context7.com/mcp";
-        codemode = false;
-      };
     };
   };
   hostConfiguration = lib.recursiveUpdate baseConfiguration cfg.configuration;

@@ -29,7 +29,6 @@
     system = {
       karabiner.enable = false;
       better-touch-tool.enable = false;
-      ice.enable = true;
     };
 
     windowManager = {
@@ -39,6 +38,7 @@
 
     development = {
       android-studio.enable = true;
+      workmux.enable = true;
     };
   };
 
@@ -195,30 +195,6 @@
     menubarIcon = 2;
     updatePolicy = 1;
     screenRecordingPermissionSkipped = true;
-  };
-
-  system.defaults.CustomUserPreferences."com.jordanbaird.Ice" = {
-    SUAutomaticallyUpdate = false;
-    SUEnableAutomaticChecks = false;
-    SUHasLaunchedBefore = true;
-    ShowIceIcon = true;
-    CustomIceIconIsTemplate = false;
-    ShowSectionDividers = false;
-    EnableAlwaysHiddenSection = false;
-    CanToggleAlwaysHiddenSection = true;
-    ShowAllSectionsOnUserDrag = true;
-    ShowOnClick = true;
-    ShowOnHover = false;
-    ShowOnHoverDelay = 0.2;
-    ShowOnScroll = true;
-    AutoRehide = true;
-    RehideInterval = 15.0;
-    RehideStrategy = 0;
-    TempShowInterval = 15.0;
-    IceBarLocation = 0;
-    UseIceBar = false;
-    ItemSpacingOffset = 0.0;
-    HideApplicationMenus = true;
   };
 
   system.defaults.CustomUserPreferences."com.mitchellh.ghostty" = {

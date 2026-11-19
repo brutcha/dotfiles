@@ -7,6 +7,6 @@
 # System Settings → Privacy & Security after first "Start Virtual Camera".
 #
 if stdenv.hostPlatform.isDarwin then
-  helpers.darwin.mkBrewCask { caskName = "obs"; }
+  helpers.darwin.mkBrewPkg { caskName = "obs"; }
 else
   obs-studio

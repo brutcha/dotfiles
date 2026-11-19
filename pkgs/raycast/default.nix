@@ -12,4 +12,4 @@
 #
 # Raycast is darwin-only (no Linux build); the overlay leaves Linux alone.
 #
-helpers.darwin.mkBrewCask { caskName = "raycast"; }
+helpers.darwin.mkBrewPkg { caskName = "raycast"; }

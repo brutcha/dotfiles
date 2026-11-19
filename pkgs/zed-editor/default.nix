@@ -13,4 +13,4 @@
 #   nixpkgs source : https://github.com/NixOS/nixpkgs/tree/master/pkgs/by-name/ze/zed-editor
 #   upstream cache tracking issue: https://github.com/zed-industries/zed/issues/26277
 #
-helpers.darwin.mkBrewCask { caskName = "zed"; }
+helpers.darwin.mkBrewPkg { caskName = "zed"; }

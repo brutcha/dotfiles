@@ -1,5 +1,11 @@
 { lib, stdenv, runCommand, codex, ripgrep, bubblewrap }:
-# Adds the on-disk package layout `features.daemon_auto_start` requires (codex-rs/install-context/src/lib.rs), post-processing the cached build so nothing recompiles.
+#
+# Codex CLI for macOS and Linux.
+#
+# Uses Nixpkgs' Codex package, post-processing it to add the on-disk layout
+# `features.daemon_auto_start` requires (codex-rs/install-context/src/lib.rs)
+# without recompiling the cached build.
+#
 runCommand "codex-${codex.version}"
   {
     pname = "codex";

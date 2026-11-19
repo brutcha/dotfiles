@@ -89,8 +89,6 @@ in
     })
 
     (lib.mkIf cfg.workmux.enable {
-      # The Workmux binary comes from its vendor Homebrew tap; Home Manager
-      # owns only the global configuration.
       xdg.configFile."workmux/config.yaml" = {
         force = true;
         text = ''
